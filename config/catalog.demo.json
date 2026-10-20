@@ -1,0 +1,86 @@
+{
+  "source": "synthetic-demo-catalog",
+  "scope": {
+    "instrumentType": "EQUITY",
+    "region": "USA",
+    "universe": "TOP3000",
+    "delay": 1
+  },
+  "fields": {
+    "open": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "high": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "low": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "close": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "volume": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "vwap": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "returns": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "cap": {
+      "kind": "MATRIX",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示；不得用于 live"
+    },
+    "subindustry": {
+      "kind": "GROUP",
+      "point_in_time": true,
+      "min_delay": 1,
+      "review_note": "仅演示"
+    }
+  },
+  "operators": [
+    "abs",
+    "group_neutralize",
+    "group_rank",
+    "inverse",
+    "log",
+    "rank",
+    "sign",
+    "signed_power",
+    "sqrt",
+    "ts_corr",
+    "ts_covariance",
+    "ts_decay_linear",
+    "ts_delay",
+    "ts_delta",
+    "ts_mean",
+    "ts_rank",
+    "ts_std_dev",
+    "ts_sum",
+    "ts_zscore"
+  ]
+}

@@ -1,0 +1,54 @@
+AlphaResearch V0.3.5 verification — 2026-10-21
+
+Live read-only authentication, /users/self, /operators and /data-fields checks
+succeeded for the user's account. One explicitly authorized rank(close)
+simulation was created. Its Alpha detail appended server-owned date metadata,
+which exposed an overly strict whole-dictionary settings comparison.
+
+The reconciliation now verifies every requested setting while permitting extra
+server metadata. A regression test confirms changed requested values still fail.
+The saved Simulation Location later returned a failed terminal status, but the
+already-created Alpha was found through the owner's Alpha-list GET and verified
+through the Alpha-detail GET. No second simulation POST was used.
+
+User-supplied V0.3.3 archive: all 44 MANIFEST.sha256 entries verified before
+integration. Initial Windows run exposed default-GBK text decoding failures and
+read-only-descriptor fsync failures. Production text I/O now explicitly uses
+UTF-8 and probe fsync uses a writable descriptor.
+
+Windows / Python 3.11 result: 129 / 129 tests passed.
+
+Baseline: published V0.3.2 archive; ZIP and per-file manifest hashes verified.
+Baseline ZIP SHA-256: 4e4bc841191507020d45d2a01b793d22788cb48ca693871614749501e4d0d9b7
+
+Before repair: two new regressions FAILED on the original source.
+- reviewed_context accepted a calendar omitting 184 leading / 150 trailing days;
+- daily_evidence_valid accepted the corresponding legacy complete proof.
+
+After repair: 128 / 128 standard-library tests passed (119 retained, 9 added).
+New coverage: the exact combined counterexample; leading-only/trailing-only
+omissions in both creation and cache revalidation; fixed-window/evaluation
+refusal; 0/14/15 day threshold combinations; legitimate nearby weekend edges;
+and a valid IS subinterval inside a larger calendar.
+
+Both paths use one shared validate_session_boundaries guard and the existing
+MAX_SESSION_CALENDAR_GAP_DAYS=14. Fixed stability policy is unchanged.
+Legacy history is not rewritten; stored complete flags must be revalidated.
+
+Staged-source offline integration passed:
+- doctor: demo, no credentials; live research and submission closed;
+- 5 baseline hypotheses, 15 synthetic simulations, LLM calls 0;
+- shortlist 0, research queue 0; no discovery efficacy inference;
+- restart/resume added 0 simulations; audit chain verified;
+- synthetic Walk-Forward 136 observations; final holdout 59 observations;
+- saved final report recovered unchanged;
+- reordered CSV/new study ledger repeat reveal rejected.
+
+14 days is an anomaly guard, not authoritative calendar certification. It cannot
+find all omissions within the threshold or prove missing dates were closures.
+Current-account PnL semantics, capital, resets and booking must still be reviewed.
+
+NOT executed: real BRAIN login/API/simulation, real LLM inference, real-market
+validation, same-budget discovery comparison or submission. Local simulator
+limits and lack of BRAIN numeric equivalence remain unchanged. Synthetic scores
+are not financial evidence. No runtime DBs, secrets or real account captures ship.

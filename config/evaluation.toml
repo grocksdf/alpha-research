@@ -1,0 +1,21 @@
+# 全部是示例研究阈值，不是官方提交要求。负责人按账户规则审核后才可置 verified。
+version = "research-v2-fixed-session-windows"
+min_sharpe = 1.25
+min_fitness = 1.0
+min_turnover = 0.01
+max_turnover = 0.70
+max_abs_self_correlation = 0.70
+require_production_correlation = false
+max_abs_production_correlation = 0.70
+required_checks = ["LOW_SHARPE", "LOW_FITNESS", "CONCENTRATED_WEIGHT"]
+# 固定研究诊断参数；不是平台官方门槛，不允许 Agent 修改或按结果调窗。
+stability_window_sessions = 126
+min_stability_windows = 4
+stability_annualization = 252
+min_positive_window_fraction = 0.67
+min_window_sharpe = -0.25
+min_sensitivity_neighbors = 2
+min_neighbor_sharpe_ratio = 0.70
+min_neighbor_fitness = 0.70
+max_abs_pool_correlation = 0.70
+min_pnl_overlap = 252

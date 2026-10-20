@@ -1,0 +1,7 @@
+[
+  {"expression":"-rank(ts_delta(close, 5))", "hypothesis":"短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。", "source":"固定规则基线：短期反转，未经实证"},
+  {"expression":"rank(ts_delta(close, 60) / ts_delay(close, 60))", "hypothesis":"中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。", "source":"固定规则基线：价格动量，未经实证"},
+  {"expression":"-rank(ts_std_dev(returns, 20))", "hypothesis":"高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。", "source":"固定规则基线：低波动，未经实证"},
+  {"expression":"rank((vwap-close)/close) * rank(volume/ts_mean(volume, 20))", "hypothesis":"相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。", "source":"固定规则基线：价量压力，未经实证"},
+  {"expression":"-rank(ts_corr(close, volume, 20))", "hypothesis":"量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。", "source":"固定规则基线：量价关系，未经实证"}
+]

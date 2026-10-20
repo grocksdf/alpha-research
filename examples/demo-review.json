@@ -1,0 +1,1233 @@
+{
+  "run_id": "4790ec31cac440aa",
+  "mode": "demo",
+  "created_at": "2026-10-20T15:34:47.284503+00:00",
+  "research_arm": {
+    "agent": "baseline",
+    "papers_path": null
+  },
+  "snapshot_hash": "e08c816179eec21acf5a708a4866698e2e10e0acb9398449323bef18a6d06ba1",
+  "snapshot": {
+    "code": {
+      "__init__.py": "d572d2f3bb777a03c4b33abac4e890e95dabe771a05526706a027c378f20beab",
+      "__main__.py": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279",
+      "agent.py": "1cc1424f8d871df33cf8f94811b4a636ac40e31c6e4a64b4c713f37f0e4e4b3c",
+      "batch.py": "ca783c14e2763e87aebffbe04bae66c62aa9a3036479a7219a56342878ca0cac",
+      "benchmark.py": "fa2a288c01417eb47d1c633b2d452dc6e6c79a0b517471b06fe03c261f923f00",
+      "brain.py": "408e2a062e77534801fc6a5dbd24349333ca2899c07f84d17ffdc46f5321695d",
+      "cli.py": "d6cb98f860fcf43a7f3b953a27137b3eef5f05822193210e2bbd8b2739e573f0",
+      "common.py": "540f3dc83b93400f6d4701400b25276ac94cc093a75189a53bf9fb67a164fb1e",
+      "engine.py": "53b86e7820d30d011e6470d89bc220d640dff222e63ecde8a98b1d5fcd63fdf3",
+      "evaluator.py": "4c879d9b4631e19f97ab7292734caa63dbbc1f49df74073782fa62d24706acf3",
+      "holdout_registry.py": "e69de070b93f0221b24c263d174a4d76a124a186df4fc1cc8e91d2dabc5cadda",
+      "http.py": "15339de58491ff8cd13a882839759dee6efbae5983c1be31b04b73fde9329e3d",
+      "local_validation.py": "6cf4503e97d798d18be8db44e11dc83f91236ae718cfb8248a7a88d084a783a6",
+      "memory.py": "1e575f264a1c9b7d704e009f2392aaf7e7425bd788a6ed05c95a7a1fb955f5bc",
+      "papers.py": "bb5733035efccade568440ccd3baf82ee4574d08c795f9b9aaa4d1a1a584594c",
+      "pnl_evidence.py": "c7c937c7be1bf7db5d1b32a926cec3d2f3676f0df3ef6c123a1fa3b4a7d0ffb2",
+      "probe.py": "cce1ad2f310262f0258f7500fb675598ca8e4a2f36db9f51d472e28ab4616272",
+      "research.py": "51206a6bacf0a5c666b437293411da01c7a3ad6620266a20fe6b539d5f2bc020",
+      "trace.py": "591b4e98e95aba7311a1b226220b28bfaea2e676e9c4a146861c6114b87259ac",
+      "tracking.py": "c402ab5ae0cdea6dd410c508d72467bc32b3a0b3afcd323352fb39d3f2c16e90",
+      "validator.py": "370cf223f186c33a87fad8358519192684121496630d71064511461279ff66bd"
+    },
+    "git_commit": "uncommitted",
+    "runtime": {
+      "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+      "sqlite": "3.53.1"
+    },
+    "scope": {
+      "instrumentType": "EQUITY",
+      "region": "USA",
+      "universe": "TOP3000",
+      "delay": 1,
+      "language": "FASTEXPR",
+      "decay": 4,
+      "neutralization": "SUBINDUSTRY",
+      "truncation": 0.08,
+      "pasteurization": "ON",
+      "unitHandling": "VERIFY",
+      "nanHandling": "OFF",
+      "visualization": false
+    },
+    "policy": {
+      "version": "research-v2-fixed-session-windows",
+      "min_sharpe": 1.25,
+      "min_fitness": 1.0,
+      "min_turnover": 0.01,
+      "max_turnover": 0.7,
+      "max_abs_self_correlation": 0.7,
+      "require_production_correlation": false,
+      "max_abs_production_correlation": 0.7,
+      "required_checks": [
+        "LOW_SHARPE",
+        "LOW_FITNESS",
+        "CONCENTRATED_WEIGHT"
+      ],
+      "stability_window_sessions": 126,
+      "min_stability_windows": 4,
+      "stability_annualization": 252,
+      "min_positive_window_fraction": 0.67,
+      "min_window_sharpe": -0.25,
+      "min_sensitivity_neighbors": 2,
+      "min_neighbor_sharpe_ratio": 0.7,
+      "min_neighbor_fitness": 0.7,
+      "max_abs_pool_correlation": 0.7,
+      "min_pnl_overlap": 252
+    },
+    "rules": {
+      "project": "AlphaResearch",
+      "goal": "Discover diverse and defensible BRAIN candidates",
+      "max_simulations_per_run": 15,
+      "max_proposals_per_run": 30,
+      "max_llm_calls_per_run": 40,
+      "max_tool_calls_per_response": 8,
+      "max_expression_chars": 2000,
+      "max_ast_nodes": 120,
+      "max_ast_depth": 16,
+      "max_window": 504,
+      "max_candidates_per_family": 2,
+      "sensitivity_fraction": 0.2,
+      "sensitivity_variants": 2,
+      "automatic_submit": false,
+      "protect_final_holdout": true,
+      "record_all_trials": true,
+      "deduplicate_before_simulation": true
+    },
+    "program_hash": "a28cfa46b129c241278a6da205c281243eb24df726ab9495c57611f709ca812d",
+    "catalog": {
+      "source": "synthetic-demo-catalog",
+      "scope": {
+        "instrumentType": "EQUITY",
+        "region": "USA",
+        "universe": "TOP3000",
+        "delay": 1
+      },
+      "fields": {
+        "open": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "high": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "low": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "close": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "volume": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "vwap": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "returns": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "cap": {
+          "kind": "MATRIX",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示；不得用于 live"
+        },
+        "subindustry": {
+          "kind": "GROUP",
+          "point_in_time": true,
+          "min_delay": 1,
+          "review_note": "仅演示"
+        }
+      },
+      "operators": [
+        "abs",
+        "group_neutralize",
+        "group_rank",
+        "inverse",
+        "log",
+        "rank",
+        "sign",
+        "signed_power",
+        "sqrt",
+        "ts_corr",
+        "ts_covariance",
+        "ts_decay_linear",
+        "ts_delay",
+        "ts_delta",
+        "ts_mean",
+        "ts_rank",
+        "ts_std_dev",
+        "ts_sum",
+        "ts_zscore"
+      ]
+    },
+    "brain": {
+      "base_url": "https://api.worldquantbrain.com",
+      "timeout_seconds": 30,
+      "poll_deadline_seconds": 900,
+      "max_get_attempts": 100,
+      "authentication": "/authentication",
+      "simulations": "/simulations",
+      "alpha": "/alphas/{id}",
+      "check": "/alphas/{id}/check",
+      "self_correlation": "/alphas/{id}/correlations/self",
+      "production_correlation": "/alphas/{id}/correlations/prod",
+      "yearly": "/alphas/{id}/recordsets/yearly-stats",
+      "pnl": "/alphas/{id}/recordsets/pnl",
+      "submit": "/alphas/{id}/submit",
+      "fields": "/data-fields",
+      "operators": "/operators",
+      "user": "/users/self",
+      "discovery_evidence": {
+        "schema_reviewed": false,
+        "review_note": "",
+        "date_semantics": "unverified",
+        "is_start_path": [],
+        "is_end_path": []
+      },
+      "pnl_evidence": {
+        "reviewed": false,
+        "review_note": "",
+        "value_semantics": "unverified",
+        "capital_path": [],
+        "calendar_reviewed": false,
+        "calendar_id": "",
+        "calendar_source": "",
+        "calendar_review_note": "",
+        "calendar_region": "",
+        "calendar_start": "",
+        "calendar_end": "",
+        "calendar_file": "",
+        "calendar_sha256": ""
+      }
+    },
+    "mode": "demo",
+    "safety": {
+      "live_research_enabled": false,
+      "submission_enabled": false,
+      "validated_probe_record": ""
+    },
+    "research": {
+      "paper_search_enabled": false,
+      "max_paper_requests_per_run": 5,
+      "max_papers_per_search": 5,
+      "max_notes_per_run": 30
+    },
+    "cost": {},
+    "account_profile_verified": false,
+    "account_profile_note": "尚未使用当前账户核实接口、检查项和提交规则",
+    "llm": {
+      "base_url": "https://api.openai.com/v1",
+      "model": "",
+      "timeout_seconds": 90
+    }
+  },
+  "counts": {
+    "simulations": 15,
+    "proposals": 5,
+    "llm_calls": 0
+  },
+  "task_states": {
+    "completed": 15
+  },
+  "research_intents": [
+    {
+      "id": "b5e36dcf3c8545ed",
+      "run_id": "4790ec31cac440aa",
+      "trial_id": "3360cc241eef42a4",
+      "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
+      "source": "固定规则基线：短期反转，未经实证",
+      "parent_intent_id": null,
+      "created": "2026-10-20T15:34:47.169433+00:00",
+      "state": "active",
+      "reason": null
+    },
+    {
+      "id": "d8abab99e33a4caa",
+      "run_id": "4790ec31cac440aa",
+      "trial_id": "c17f42f3d2bc466b",
+      "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
+      "source": "固定规则基线：价格动量，未经实证",
+      "parent_intent_id": null,
+      "created": "2026-10-20T15:34:47.187474+00:00",
+      "state": "active",
+      "reason": null
+    },
+    {
+      "id": "29f953dead114bf7",
+      "run_id": "4790ec31cac440aa",
+      "trial_id": "5bcb701218784446",
+      "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
+      "source": "固定规则基线：低波动，未经实证",
+      "parent_intent_id": null,
+      "created": "2026-10-20T15:34:47.207250+00:00",
+      "state": "active",
+      "reason": null
+    },
+    {
+      "id": "ad502af1de3d4260",
+      "run_id": "4790ec31cac440aa",
+      "trial_id": "1d470a20f92240ac",
+      "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
+      "source": "固定规则基线：价量压力，未经实证",
+      "parent_intent_id": null,
+      "created": "2026-10-20T15:34:47.228172+00:00",
+      "state": "active",
+      "reason": null
+    },
+    {
+      "id": "b71ff4a361164846",
+      "run_id": "4790ec31cac440aa",
+      "trial_id": "c681636ccf9c4a8c",
+      "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
+      "source": "固定规则基线：量价关系，未经实证",
+      "parent_intent_id": null,
+      "created": "2026-10-20T15:34:47.250383+00:00",
+      "state": "active",
+      "reason": null
+    }
+  ],
+  "costs": {
+    "measured_seconds": 0.011373589000015727,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "token_usage_complete": false,
+    "known_usd": null,
+    "all_costs_priced": false,
+    "usd_is_estimate": false,
+    "categories": {
+      "simulation_create": 15,
+      "simulation_poll": 15
+    }
+  },
+  "families": [
+    {
+      "structural_family": "39951cfd9a8f3fe1ed2ecf23da11d4c7e32491415f7d46779a12cb9a22aa8ac9",
+      "trial_ids": [
+        "3360cc241eef42a4"
+      ],
+      "intent_ids": [
+        "b5e36dcf3c8545ed"
+      ],
+      "tags": [],
+      "states": {
+        "active": 1
+      },
+      "unique_formulas": 1,
+      "economic_independence_verified": false
+    },
+    {
+      "structural_family": "7cc8117c4f7d96c73950a535f21fa59d36584da5d9570b5d7dad84f48c889fc8",
+      "trial_ids": [
+        "c17f42f3d2bc466b"
+      ],
+      "intent_ids": [
+        "d8abab99e33a4caa"
+      ],
+      "tags": [],
+      "states": {
+        "active": 1
+      },
+      "unique_formulas": 1,
+      "economic_independence_verified": false
+    },
+    {
+      "structural_family": "132cfd83403877dd3bc2a7549d509b727ff7cbf30b922b5835b61a3bfb40d0cf",
+      "trial_ids": [
+        "5bcb701218784446"
+      ],
+      "intent_ids": [
+        "29f953dead114bf7"
+      ],
+      "tags": [],
+      "states": {
+        "active": 1
+      },
+      "unique_formulas": 1,
+      "economic_independence_verified": false
+    },
+    {
+      "structural_family": "9ead7d106a4f64e08de82375e1801c55bea737b7a39e2c568194f4d65d04552e",
+      "trial_ids": [
+        "1d470a20f92240ac"
+      ],
+      "intent_ids": [
+        "ad502af1de3d4260"
+      ],
+      "tags": [],
+      "states": {
+        "active": 1
+      },
+      "unique_formulas": 1,
+      "economic_independence_verified": false
+    },
+    {
+      "structural_family": "ab7118e18575a71e8d7bb147b456981dc6a89d2fc4c7a2ab83901631953ef9a0",
+      "trial_ids": [
+        "c681636ccf9c4a8c"
+      ],
+      "intent_ids": [
+        "b71ff4a361164846"
+      ],
+      "tags": [],
+      "states": {
+        "active": 1
+      },
+      "unique_formulas": 1,
+      "economic_independence_verified": false
+    }
+  ],
+  "research_notes": [],
+  "trials": [
+    {
+      "id": "3360cc241eef42a4",
+      "expression": "-rank(ts_delta(close, 5))",
+      "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
+      "source": "固定规则基线：短期反转，未经实证",
+      "parent_id": null,
+      "kind": "candidate",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "465cf5fbd6aa4b5b",
+      "expression": "-rank(ts_delta(close, 4))",
+      "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "3360cc241eef42a4",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "d2c5c3d88e754d40",
+      "expression": "-rank(ts_delta(close, 6))",
+      "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "3360cc241eef42a4",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "c17f42f3d2bc466b",
+      "expression": "rank(ts_delta(close, 60) / ts_delay(close, 60))",
+      "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
+      "source": "固定规则基线：价格动量，未经实证",
+      "parent_id": null,
+      "kind": "candidate",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "e62a7f9bfc734917",
+      "expression": "rank(ts_delta(close, 48) / ts_delay(close, 60))",
+      "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "c17f42f3d2bc466b",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "920de0df17454bb3",
+      "expression": "rank(ts_delta(close, 72) / ts_delay(close, 60))",
+      "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "c17f42f3d2bc466b",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "5bcb701218784446",
+      "expression": "-rank(ts_std_dev(returns, 20))",
+      "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
+      "source": "固定规则基线：低波动，未经实证",
+      "parent_id": null,
+      "kind": "candidate",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "c1f8157869ea42c6",
+      "expression": "-rank(ts_std_dev(returns, 16))",
+      "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "5bcb701218784446",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "a68c48f9e48f4bf3",
+      "expression": "-rank(ts_std_dev(returns, 24))",
+      "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "5bcb701218784446",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "1d470a20f92240ac",
+      "expression": "rank((vwap-close)/close) * rank(volume/ts_mean(volume, 20))",
+      "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
+      "source": "固定规则基线：价量压力，未经实证",
+      "parent_id": null,
+      "kind": "candidate",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "cd6b9314e9b54311",
+      "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 16))",
+      "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "1d470a20f92240ac",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "cd60998fad4e47c6",
+      "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 24))",
+      "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "1d470a20f92240ac",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "c681636ccf9c4a8c",
+      "expression": "-rank(ts_corr(close, volume, 20))",
+      "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
+      "source": "固定规则基线：量价关系，未经实证",
+      "parent_id": null,
+      "kind": "candidate",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "7403d45c3dea4ef5",
+      "expression": "-rank(ts_corr(close, volume, 16))",
+      "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "c681636ccf9c4a8c",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    },
+    {
+      "id": "eb223a54c2164b8e",
+      "expression": "-rank(ts_corr(close, volume, 24))",
+      "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
+      "source": "deterministic_parameter_sensitivity",
+      "parent_id": "c681636ccf9c4a8c",
+      "kind": "sensitivity",
+      "state": "completed",
+      "error": null
+    }
+  ],
+  "independent_holdout_validated": false,
+  "shortlist": [],
+  "diversity_exclusions": [],
+  "research_queue": [],
+  "candidates": [
+    {
+      "trial_id": "3360cc241eef42a4",
+      "expression": "-rank(ts_delta(close, 5))",
+      "intent_id": "b5e36dcf3c8545ed",
+      "research_intents": [
+        {
+          "id": "b5e36dcf3c8545ed",
+          "run_id": "4790ec31cac440aa",
+          "trial_id": "3360cc241eef42a4",
+          "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
+          "source": "固定规则基线：短期反转，未经实证",
+          "parent_intent_id": null,
+          "created": "2026-10-20T15:34:47.169433+00:00",
+          "state": "active",
+          "reason": null
+        }
+      ],
+      "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
+      "original_run_id": "4790ec31cac440aa",
+      "promoted_from_sensitivity": false,
+      "source": "固定规则基线：短期反转，未经实证",
+      "parent_id": null,
+      "family": "39951cfd9a8f3fe1ed2ecf23da11d4c7e32491415f7d46779a12cb9a22aa8ac9",
+      "alpha_id": "DEMO_690a3794ce",
+      "checks": [
+        {
+          "name": "LOW_SHARPE",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_FITNESS",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "HIGH_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "CONCENTRATED_WEIGHT",
+          "result": "PASS"
+        }
+      ],
+      "collected_at": "2026-10-20T15:34:47.172618+00:00",
+      "evidence_errors": {},
+      "metrics": {
+        "fitness": 1.632,
+        "sharpe": 2.04,
+        "turnover": 0.18
+      },
+      "mode": "demo",
+      "production_correlation": null,
+      "self_correlation": 0.3,
+      "synthetic": true,
+      "years": [
+        {
+          "sharpe": 1.74,
+          "year": "2020"
+        },
+        {
+          "sharpe": 1.74,
+          "year": "2021"
+        },
+        {
+          "sharpe": 1.74,
+          "year": "2022"
+        },
+        {
+          "sharpe": 1.74,
+          "year": "2023"
+        }
+      ],
+      "sensitivity": [
+        {
+          "trial_id": "465cf5fbd6aa4b5b",
+          "expression": "-rank(ts_delta(close, 4))",
+          "state": "completed",
+          "alpha_id": "DEMO_4753e3b738",
+          "metrics": {
+            "fitness": 0.912,
+            "sharpe": 1.14,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "d2c5c3d88e754d40",
+          "expression": "-rank(ts_delta(close, 6))",
+          "state": "completed",
+          "alpha_id": "DEMO_6d45e5af65",
+          "metrics": {
+            "fitness": 1.272,
+            "sharpe": 1.59,
+            "turnover": 0.18
+          },
+          "error": null
+        }
+      ],
+      "evaluation": {
+        "status": "rejected",
+        "ready": false,
+        "rejections": [
+          "parameter_sensitive"
+        ],
+        "missing": [
+          "account_profile_unverified",
+          "demo_not_live_evidence",
+          "unverified_or_incomplete_daily_pnl"
+        ],
+        "research_eligible": false,
+        "research_status": "rejected",
+        "positive_window_fraction": null,
+        "worst_window_sharpe": null,
+        "stability": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [],
+          "complete": false,
+          "positive_fraction": null,
+          "worst_window_sharpe": null,
+          "reasons": [
+            "unverified_or_incomplete_daily_pnl"
+          ],
+          "not_brain_reported_sharpe": true
+        },
+        "independent_holdout_validated": false
+      }
+    },
+    {
+      "trial_id": "c17f42f3d2bc466b",
+      "expression": "rank(ts_delta(close, 60) / ts_delay(close, 60))",
+      "intent_id": "d8abab99e33a4caa",
+      "research_intents": [
+        {
+          "id": "d8abab99e33a4caa",
+          "run_id": "4790ec31cac440aa",
+          "trial_id": "c17f42f3d2bc466b",
+          "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
+          "source": "固定规则基线：价格动量，未经实证",
+          "parent_intent_id": null,
+          "created": "2026-10-20T15:34:47.187474+00:00",
+          "state": "active",
+          "reason": null
+        }
+      ],
+      "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
+      "original_run_id": "4790ec31cac440aa",
+      "promoted_from_sensitivity": false,
+      "source": "固定规则基线：价格动量，未经实证",
+      "parent_id": null,
+      "family": "7cc8117c4f7d96c73950a535f21fa59d36584da5d9570b5d7dad84f48c889fc8",
+      "alpha_id": "DEMO_5f38f0379d",
+      "checks": [
+        {
+          "name": "LOW_SHARPE",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_FITNESS",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "HIGH_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "CONCENTRATED_WEIGHT",
+          "result": "PASS"
+        }
+      ],
+      "collected_at": "2026-10-20T15:34:47.189920+00:00",
+      "evidence_errors": {},
+      "metrics": {
+        "fitness": 1.144,
+        "sharpe": 1.43,
+        "turnover": 0.18
+      },
+      "mode": "demo",
+      "production_correlation": null,
+      "self_correlation": 0.3,
+      "synthetic": true,
+      "years": [
+        {
+          "sharpe": 1.13,
+          "year": "2020"
+        },
+        {
+          "sharpe": 1.13,
+          "year": "2021"
+        },
+        {
+          "sharpe": 1.13,
+          "year": "2022"
+        },
+        {
+          "sharpe": 1.13,
+          "year": "2023"
+        }
+      ],
+      "sensitivity": [
+        {
+          "trial_id": "920de0df17454bb3",
+          "expression": "rank(ts_delta(close, 72) / ts_delay(close, 60))",
+          "state": "completed",
+          "alpha_id": "DEMO_591f53b7cc",
+          "metrics": {
+            "fitness": 1.168,
+            "sharpe": 1.46,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "e62a7f9bfc734917",
+          "expression": "rank(ts_delta(close, 48) / ts_delay(close, 60))",
+          "state": "completed",
+          "alpha_id": "DEMO_d3d40fff54",
+          "metrics": {
+            "fitness": 0.688,
+            "sharpe": 0.86,
+            "turnover": 0.18
+          },
+          "error": null
+        }
+      ],
+      "evaluation": {
+        "status": "rejected",
+        "ready": false,
+        "rejections": [
+          "parameter_sensitive"
+        ],
+        "missing": [
+          "account_profile_unverified",
+          "demo_not_live_evidence",
+          "unverified_or_incomplete_daily_pnl"
+        ],
+        "research_eligible": false,
+        "research_status": "rejected",
+        "positive_window_fraction": null,
+        "worst_window_sharpe": null,
+        "stability": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [],
+          "complete": false,
+          "positive_fraction": null,
+          "worst_window_sharpe": null,
+          "reasons": [
+            "unverified_or_incomplete_daily_pnl"
+          ],
+          "not_brain_reported_sharpe": true
+        },
+        "independent_holdout_validated": false
+      }
+    },
+    {
+      "trial_id": "5bcb701218784446",
+      "expression": "-rank(ts_std_dev(returns, 20))",
+      "intent_id": "29f953dead114bf7",
+      "research_intents": [
+        {
+          "id": "29f953dead114bf7",
+          "run_id": "4790ec31cac440aa",
+          "trial_id": "5bcb701218784446",
+          "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
+          "source": "固定规则基线：低波动，未经实证",
+          "parent_intent_id": null,
+          "created": "2026-10-20T15:34:47.207250+00:00",
+          "state": "active",
+          "reason": null
+        }
+      ],
+      "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
+      "original_run_id": "4790ec31cac440aa",
+      "promoted_from_sensitivity": false,
+      "source": "固定规则基线：低波动，未经实证",
+      "parent_id": null,
+      "family": "132cfd83403877dd3bc2a7549d509b727ff7cbf30b922b5835b61a3bfb40d0cf",
+      "alpha_id": "DEMO_81e3f16f0d",
+      "checks": [
+        {
+          "name": "LOW_SHARPE",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_FITNESS",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "HIGH_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "CONCENTRATED_WEIGHT",
+          "result": "PASS"
+        }
+      ],
+      "collected_at": "2026-10-20T15:34:47.210959+00:00",
+      "evidence_errors": {},
+      "metrics": {
+        "fitness": 1.656,
+        "sharpe": 2.07,
+        "turnover": 0.18
+      },
+      "mode": "demo",
+      "production_correlation": null,
+      "self_correlation": 0.3,
+      "synthetic": true,
+      "years": [
+        {
+          "sharpe": 1.7699999999999998,
+          "year": "2020"
+        },
+        {
+          "sharpe": 1.7699999999999998,
+          "year": "2021"
+        },
+        {
+          "sharpe": 1.7699999999999998,
+          "year": "2022"
+        },
+        {
+          "sharpe": 1.7699999999999998,
+          "year": "2023"
+        }
+      ],
+      "sensitivity": [
+        {
+          "trial_id": "a68c48f9e48f4bf3",
+          "expression": "-rank(ts_std_dev(returns, 24))",
+          "state": "completed",
+          "alpha_id": "DEMO_b9b98403a3",
+          "metrics": {
+            "fitness": 0.904,
+            "sharpe": 1.13,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "c1f8157869ea42c6",
+          "expression": "-rank(ts_std_dev(returns, 16))",
+          "state": "completed",
+          "alpha_id": "DEMO_d2f673a973",
+          "metrics": {
+            "fitness": 0.84,
+            "sharpe": 1.05,
+            "turnover": 0.18
+          },
+          "error": null
+        }
+      ],
+      "evaluation": {
+        "status": "rejected",
+        "ready": false,
+        "rejections": [
+          "parameter_sensitive"
+        ],
+        "missing": [
+          "account_profile_unverified",
+          "demo_not_live_evidence",
+          "unverified_or_incomplete_daily_pnl"
+        ],
+        "research_eligible": false,
+        "research_status": "rejected",
+        "positive_window_fraction": null,
+        "worst_window_sharpe": null,
+        "stability": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [],
+          "complete": false,
+          "positive_fraction": null,
+          "worst_window_sharpe": null,
+          "reasons": [
+            "unverified_or_incomplete_daily_pnl"
+          ],
+          "not_brain_reported_sharpe": true
+        },
+        "independent_holdout_validated": false
+      }
+    },
+    {
+      "trial_id": "1d470a20f92240ac",
+      "expression": "rank((vwap-close)/close) * rank(volume/ts_mean(volume, 20))",
+      "intent_id": "ad502af1de3d4260",
+      "research_intents": [
+        {
+          "id": "ad502af1de3d4260",
+          "run_id": "4790ec31cac440aa",
+          "trial_id": "1d470a20f92240ac",
+          "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
+          "source": "固定规则基线：价量压力，未经实证",
+          "parent_intent_id": null,
+          "created": "2026-10-20T15:34:47.228172+00:00",
+          "state": "active",
+          "reason": null
+        }
+      ],
+      "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
+      "original_run_id": "4790ec31cac440aa",
+      "promoted_from_sensitivity": false,
+      "source": "固定规则基线：价量压力，未经实证",
+      "parent_id": null,
+      "family": "9ead7d106a4f64e08de82375e1801c55bea737b7a39e2c568194f4d65d04552e",
+      "alpha_id": "DEMO_d3ae237781",
+      "checks": [
+        {
+          "name": "LOW_SHARPE",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_FITNESS",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "HIGH_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "CONCENTRATED_WEIGHT",
+          "result": "PASS"
+        }
+      ],
+      "collected_at": "2026-10-20T15:34:47.231291+00:00",
+      "evidence_errors": {},
+      "metrics": {
+        "fitness": 0.856,
+        "sharpe": 1.07,
+        "turnover": 0.18
+      },
+      "mode": "demo",
+      "production_correlation": null,
+      "self_correlation": 0.3,
+      "synthetic": true,
+      "years": [
+        {
+          "sharpe": 0.77,
+          "year": "2020"
+        },
+        {
+          "sharpe": 0.77,
+          "year": "2021"
+        },
+        {
+          "sharpe": 0.77,
+          "year": "2022"
+        },
+        {
+          "sharpe": 0.77,
+          "year": "2023"
+        }
+      ],
+      "sensitivity": [
+        {
+          "trial_id": "cd60998fad4e47c6",
+          "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 24))",
+          "state": "completed",
+          "alpha_id": "DEMO_edf3eea3d8",
+          "metrics": {
+            "fitness": 0.88,
+            "sharpe": 1.1,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "cd6b9314e9b54311",
+          "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 16))",
+          "state": "completed",
+          "alpha_id": "DEMO_6333e30b84",
+          "metrics": {
+            "fitness": 0.688,
+            "sharpe": 0.86,
+            "turnover": 0.18
+          },
+          "error": null
+        }
+      ],
+      "evaluation": {
+        "status": "rejected",
+        "ready": false,
+        "rejections": [
+          "low_fitness",
+          "low_sharpe",
+          "parameter_sensitive"
+        ],
+        "missing": [
+          "account_profile_unverified",
+          "demo_not_live_evidence",
+          "unverified_or_incomplete_daily_pnl"
+        ],
+        "research_eligible": false,
+        "research_status": "rejected",
+        "positive_window_fraction": null,
+        "worst_window_sharpe": null,
+        "stability": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [],
+          "complete": false,
+          "positive_fraction": null,
+          "worst_window_sharpe": null,
+          "reasons": [
+            "unverified_or_incomplete_daily_pnl"
+          ],
+          "not_brain_reported_sharpe": true
+        },
+        "independent_holdout_validated": false
+      }
+    },
+    {
+      "trial_id": "c681636ccf9c4a8c",
+      "expression": "-rank(ts_corr(close, volume, 20))",
+      "intent_id": "b71ff4a361164846",
+      "research_intents": [
+        {
+          "id": "b71ff4a361164846",
+          "run_id": "4790ec31cac440aa",
+          "trial_id": "c681636ccf9c4a8c",
+          "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
+          "source": "固定规则基线：量价关系，未经实证",
+          "parent_intent_id": null,
+          "created": "2026-10-20T15:34:47.250383+00:00",
+          "state": "active",
+          "reason": null
+        }
+      ],
+      "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
+      "original_run_id": "4790ec31cac440aa",
+      "promoted_from_sensitivity": false,
+      "source": "固定规则基线：量价关系，未经实证",
+      "parent_id": null,
+      "family": "ab7118e18575a71e8d7bb147b456981dc6a89d2fc4c7a2ab83901631953ef9a0",
+      "alpha_id": "DEMO_ff708a62b3",
+      "checks": [
+        {
+          "name": "LOW_SHARPE",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_FITNESS",
+          "result": "PASS"
+        },
+        {
+          "name": "LOW_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "HIGH_TURNOVER",
+          "result": "PASS"
+        },
+        {
+          "name": "CONCENTRATED_WEIGHT",
+          "result": "PASS"
+        }
+      ],
+      "collected_at": "2026-10-20T15:34:47.253665+00:00",
+      "evidence_errors": {},
+      "metrics": {
+        "fitness": 0.616,
+        "sharpe": 0.77,
+        "turnover": 0.18
+      },
+      "mode": "demo",
+      "production_correlation": null,
+      "self_correlation": 0.3,
+      "synthetic": true,
+      "years": [
+        {
+          "sharpe": 0.47000000000000003,
+          "year": "2020"
+        },
+        {
+          "sharpe": 0.47000000000000003,
+          "year": "2021"
+        },
+        {
+          "sharpe": 0.47000000000000003,
+          "year": "2022"
+        },
+        {
+          "sharpe": 0.47000000000000003,
+          "year": "2023"
+        }
+      ],
+      "sensitivity": [
+        {
+          "trial_id": "7403d45c3dea4ef5",
+          "expression": "-rank(ts_corr(close, volume, 16))",
+          "state": "completed",
+          "alpha_id": "DEMO_815f39267f",
+          "metrics": {
+            "fitness": 0.936,
+            "sharpe": 1.17,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "eb223a54c2164b8e",
+          "expression": "-rank(ts_corr(close, volume, 24))",
+          "state": "completed",
+          "alpha_id": "DEMO_2269c4b358",
+          "metrics": {
+            "fitness": 0.944,
+            "sharpe": 1.18,
+            "turnover": 0.18
+          },
+          "error": null
+        }
+      ],
+      "evaluation": {
+        "status": "rejected",
+        "ready": false,
+        "rejections": [
+          "low_fitness",
+          "low_sharpe"
+        ],
+        "missing": [
+          "account_profile_unverified",
+          "demo_not_live_evidence",
+          "unverified_or_incomplete_daily_pnl"
+        ],
+        "research_eligible": false,
+        "research_status": "rejected",
+        "positive_window_fraction": null,
+        "worst_window_sharpe": null,
+        "stability": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [],
+          "complete": false,
+          "positive_fraction": null,
+          "worst_window_sharpe": null,
+          "reasons": [
+            "unverified_or_incomplete_daily_pnl"
+          ],
+          "not_brain_reported_sharpe": true
+        },
+        "independent_holdout_validated": false
+      }
+    }
+  ],
+  "audit": {
+    "events": 87,
+    "head": "9c2454ef2440c82baa1b635d713ba970bb36734ef4d6622dc01ce4fba7cd14a3"
+  },
+  "notice": "DEMO：全部指标是合成测试数据，禁止提交",
+  "review_hash": "bd9b84d8aa66f5a66f57f6f8b9e9a1664d57f2c7502d48913762ab85734fe5b2"
+}
