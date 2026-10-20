@@ -61,7 +61,7 @@ def credentials():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="AlphaResearch V0.3.3 单 Agent 研究与隔离验证")
+    parser = argparse.ArgumentParser(description="AlphaResearch V0.4.0 恢复、证据与受预算约束研究")
     parser.add_argument("--config", default="config/settings.toml")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="离线配置检查；不登录")
@@ -76,6 +76,18 @@ def main(argv=None):
     evidence.add_argument('--trace',help='仅保存脱敏响应结构')
     resume_probe = sub.add_parser("resume-probe", help="只恢复访问探测的 GET 轮询，不重新创建模拟")
     resume_probe.add_argument("record", help="probe-api --one-simulation 写入的 JSON")
+    resume_probe.add_argument('--alpha-id',help='人工确认已有 ID；仍须账户列表成员与详情对账，不创建模拟')
+    audit=sub.add_parser('audit-alphas',help='GET-only 对账已有 Alpha 清单；不创建模拟或提交')
+    audit.add_argument('--manifest',required=True,help='JSON 数组：alpha_id、expression、settings')
+    audit.add_argument('--output',default='state/alphas-evidence-audit.json')
+    audit.add_argument('--trace',help='脱敏结构追踪文件')
+    directed=sub.add_parser('directed-plan',help='冻结六公式/单参数变更/6 次模拟上限；不调用账户')
+    directed.add_argument('--study-id',required=True)
+    directed.add_argument('--output',default='state/directed-plan.json')
+    directed.add_argument('--candidates-output',default='state/directed-candidates.json')
+    directed_run=sub.add_parser('directed-run',help='执行/恢复已冻结六公式设计；稳定 study_id 不重置预算')
+    directed_run.add_argument('--plan',required=True)
+    directed_run.add_argument('--report',default='state/directed-review.json')
     reconcile_probe=sub.add_parser('reconcile-probe',help='人工确认服务端已创建后绑定模拟 Location；不重发 POST')
     reconcile_probe.add_argument('record');reconcile_probe.add_argument('--location',required=True)
     sync = sub.add_parser("sync-catalog", help="登录并同步当前账户目录，不运行模拟")
@@ -87,6 +99,7 @@ def main(argv=None):
     run.add_argument("--report", default="state/latest-review.json")
     resume = sub.add_parser("resume", help="恢复 GET 轮询，不重复不确定 POST")
     resume.add_argument("run_id")
+    resume.add_argument('--continue-research',action='store_true',help='显式允许处理排队任务和新增参数扰动；默认仅 GET 恢复')
     report = sub.add_parser("report", help="导出当前 run 的评审包")
     report.add_argument("run_id")
     report.add_argument("--output", default="state/latest-review.json")
@@ -96,6 +109,8 @@ def main(argv=None):
     reconcile.add_argument("run_id")
     reconcile.add_argument("trial_id")
     reconcile.add_argument("--location", required=True)
+    recover=sub.add_parser('recover-trial',help='用账户 Alpha 列表与详情只读恢复不确定任务')
+    recover.add_argument('run_id');recover.add_argument('trial_id');recover.add_argument('--alpha-id')
     submit = sub.add_parser("submit", help="精确批准一个已通过评审的 live Alpha")
     submit.add_argument("run_id")
     submit.add_argument("trial_id")
@@ -138,6 +153,10 @@ def main(argv=None):
     engine = None
     try:
         config = load_settings(args.config)
+        if args.command=='directed-plan':
+            from .directed import create_plan
+            value=create_plan(config,args.study_id,args.output,args.candidates_output)
+            print_json({'output':args.output,'candidates':args.candidates_output,'plan_sha256':value['plan_sha256'],'max_simulations':6});return
         if args.command=='field-search':
             from .research import search_fields
             print_json(search_fields(config['catalog_data'],args.query,args.limit,not args.all_fields));return
@@ -191,6 +210,14 @@ def main(argv=None):
                 'paper_search_enabled':config.get('research',{}).get('paper_search_enabled',False)})
             return
         with worker_lock(config["database"]):
+            if args.command=='audit-alphas':
+                from .evidence_audit import audit_existing_alphas
+                from .trace import ShapeRecorder
+                if Path(args.output).exists():raise ResearchError('审计报告已存在；指定新输出，保留历史')
+                credentials();simulator=BrainSimulator(config)
+                simulator.api.observer=ShapeRecorder(args.trace or args.output+'.shapes.jsonl')
+                simulator.login()
+                print_json(audit_existing_alphas(simulator,args.manifest,args.output));return
             if args.command=='probe-evidence':
                 from .probe import inspect_alpha_evidence
                 from .trace import ShapeRecorder
@@ -227,7 +254,7 @@ def main(argv=None):
                 from .trace import ShapeRecorder
                 simulator.api.observer=ShapeRecorder(args.record+'.shapes.jsonl')
                 simulator.login()
-                print_json(resume_simulation_probe(simulator, args.record) if args.command=='resume-probe' else reconcile_simulation_probe(simulator,args.record,args.location))
+                print_json(resume_simulation_probe(simulator, args.record,args.alpha_id) if args.command=='resume-probe' else reconcile_simulation_probe(simulator,args.record,args.location))
                 return
             if args.command=='record-cost':
                 from .brain import finite
@@ -246,7 +273,7 @@ def main(argv=None):
                     memory.close()
                 return
             simulator = None
-            if args.command == "sync-catalog" or (config["mode"] == "live" and args.command in ("run", "resume", "submit", "resume-submit",'refresh-evidence')):
+            if args.command == "sync-catalog" or (config["mode"] == "live" and args.command in ("run", "resume", "submit", "resume-submit",'refresh-evidence','recover-trial','directed-run')):
                 credentials()
                 simulator = BrainSimulator(config)
                 identity = simulator.login()
@@ -260,9 +287,16 @@ def main(argv=None):
                     return
                 if config["catalog_data"].get("account_id") != identity["user_id"]:
                     raise ResearchError("登录账户与字段目录账户不一致，请重新同步目录")
-                if args.command=='run':
+                if args.command in ('run','directed-run'):
                     from .probe import require_smoke_receipt
                     require_smoke_receipt(config,identity['user_id'])
+            if args.command=='directed-run':
+                from .directed import execute_plan
+                print_json(execute_plan(config,args.plan,args.report,simulator));return
+            if args.command=='recover-trial':
+                if config['mode']!='live':raise ResearchError('仅用于真实任务的 GET 对账')
+                from .reconciliation import recover_saved_trial
+                print_json(recover_saved_trial(config,args.run_id,args.trial_id,simulator,args.alpha_id));return
             if args.command == "resume-submit":
                 if not simulator:
                     raise ResearchError("DEMO 不支持提交")
@@ -304,7 +338,7 @@ def main(argv=None):
                 review = engine.write_report(args.report)
                 print_json({"report": args.report, "shortlisted": len(review["shortlist"]), "counts": review["counts"]})
             elif args.command == "resume":
-                print_json(engine.resume())
+                print_json(engine.resume(args.continue_research))
             elif args.command=='refresh-evidence':
                 print_json(engine.refresh_evidence(args.trial_id));engine.write_report(args.report)
             elif args.command == "report":

@@ -53,6 +53,9 @@ def yearly_stats(payload):
 def correlation(payload):
     if not isinstance(payload, dict):
         raise ApiError("相关性响应 schema 未知")
+    for key in ('status', 'result'):
+        if key in payload and str(payload[key]).strip().upper() not in ('PASS','COMPLETE','COMPLETED','SUCCESS'):
+            raise ApiError('相关性状态尚未明确完成；不使用附带的数值')
     # A documented max plus optional min. Negative redundancy also matters.
     maximum = finite(payload.get("max"))
     minimum = finite(payload.get("min"))
@@ -128,18 +131,20 @@ def pnl_isolation_valid(result):
 def normalize_checks(payload):
     if not isinstance(payload, dict):
         raise ApiError("检查响应 schema 未知")
-    rows = payload.get("is", {}).get("checks", payload.get("checks"))
+    sample = payload.get('is')
+    rows = sample.get('checks',payload.get('checks')) if isinstance(sample,dict) else payload.get('checks')
     if not isinstance(rows, list) or not rows:
         raise ApiError("缺少平台检查结果")
     result = []
     names = set()
     for row in rows:
-        if not isinstance(row, dict) or not isinstance(row.get("name"), str) or not isinstance(row.get("result"), str):
+        if not isinstance(row, dict) or not isinstance(row.get("name"), str) or not row['name'].strip():
             raise ApiError("检查项格式未知")
         if row["name"] in names:
             raise ApiError("平台检查项重复")
         names.add(row["name"])
-        result.append({"name": row["name"], "result": row["result"].upper(),
+        from .checks import check_state
+        result.append({"name": row["name"], "result": check_state(row.get('result')),
                        "value": finite(row.get("value")), "limit": finite(row.get("limit"))})
     return result
 
@@ -186,12 +191,15 @@ class BrainSimulator:
         response = self.api.once("POST", self.path("simulations"),
             {"type": "REGULAR", "settings": scope, "regular": expression})
         if response.status in (200, 201, 202) and response.headers.get("location"):
-            return self.api.url(response.headers["location"])
+            try:
+                return self.api.url(response.headers["location"])
+            except ApiError as error:
+                raise AmbiguousWrite('服务端返回不可信 Location；可能已创建，禁止重复 POST') from error
         if response.status in (400, 422, 429):
             raise ApiError(f"模拟未接受 HTTP {response.status}；不自动重发", response.status)
         raise AmbiguousWrite("模拟创建状态不明确；请对账，禁止自动重发", response.status)
 
-    def finish(self, location, minimal=False):
+    def finish(self, location, minimal=False, on_alpha=None):
         def terminal(payload):
             if not isinstance(payload, dict):
                 raise ApiError("模拟状态 schema 未知")
@@ -205,18 +213,21 @@ class BrainSimulator:
         alpha_id = alpha.get("id") if isinstance(alpha, dict) else alpha
         if not isinstance(alpha_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", alpha_id):
             raise ApiError("单模拟的 Alpha ID 格式未知")
+        if on_alpha:
+            on_alpha(alpha_id)
         return self.collect(alpha_id,minimal=True) if minimal else self.collect(alpha_id)
 
-    def finish_probe(self,location):
+    def finish_probe(self,location,on_alpha=None):
         # Initial account acceptance needs only simulation completion and metric parsing.
-        return self.finish(location,minimal=True)
+        return self.finish(location,minimal=True,on_alpha=on_alpha)
 
-    def collect(self, alpha_id, minimal=False):
+    def collect(self, alpha_id, minimal=False, audit=False):
         detail = self.api.wait(self.path("alpha", alpha_id))
         if not isinstance(detail, dict) or detail.get("id") != alpha_id or not isinstance(detail.get("is"), dict):
             raise ApiError("Alpha 详情缺少当前 ID 或 IS 指标")
         metrics = {k: finite(detail["is"].get(k)) for k in ("sharpe", "fitness", "turnover", "returns", "drawdown", "margin")}
         result = {"mode": "live", "alpha_id": alpha_id, "metrics": metrics,
+                  'date_created': detail.get('dateCreated'), 'alpha_type': detail.get('type'),
                   "expression": detail.get("regular", {}).get("code") if isinstance(detail.get("regular"), dict) else None,
                   "settings": detail.get("settings"),
                   "checks": [], "years": [], "self_correlation": None,
@@ -227,7 +238,14 @@ class BrainSimulator:
             'account_ref':self.account_ref,'detail_path':self.path('alpha',alpha_id),'pnl_path':self.path('pnl',alpha_id),
             'transport':'account_http' if type(self.api.transport).__name__=='JsonTransport' else 'scripted_or_unknown_transport',
             'detail_reconciliation_sha256':digest({'id':alpha_id,'expression':result['expression'],'settings':result['settings'],'metrics':metrics})}
+        result['evidence_source']['responses']={'alpha':{'method':'GET','path':self.path('alpha',alpha_id),
+            'payload_sha256':digest(detail),'observed_at':now()}}
         if minimal:return result
+        def fetch(name):
+            payload=self.api.wait(self.path(name,alpha_id))
+            result['evidence_source']['responses'][name]={'method':'GET','path':self.path(name,alpha_id),
+                'payload_sha256':digest(payload),'observed_at':now()}
+            return payload
         try:
             result['pnl_isolation']=discovery_isolation(detail,self.paths.get('discovery_evidence',{}))
         except ApiError as error:
@@ -245,18 +263,23 @@ class BrainSimulator:
                                  ("pnl", "pnl_changes", pnl_changes),
                                  ("self_correlation", "self_correlation", correlation)):
             try:
-                if name in ('yearly','pnl') and result['pnl_isolation']['status']!='isolated':continue
+                if name=='yearly' and result['pnl_isolation']['status']!='isolated':continue
                 if name=='pnl':
+                    if context is None and not audit:continue
+                    payload=fetch(name)
+                    if audit:
+                        from .evidence_audit import observe_pnl
+                        result['pnl_observation']=observe_pnl(payload,context,result['pnl_isolation'])
                     if context is None:continue
-                    result.update(build_daily_evidence(self.api.wait(self.path(name,alpha_id)),context))
+                    result.update(build_daily_evidence(payload,context))
                     if result['daily_evidence']['status']!='complete':
                         result['evidence_errors']['pnl_changes']='交易日观测不完整或含非交易日记录；跨缺口差分已隔离'
-                else:result[key] = parse(self.api.wait(self.path(name, alpha_id)))
+                else:result[key] = parse(fetch(name))
             except ApiError as e:
                 result["evidence_errors"][key] = str(e)
         if self.config["policy"]["require_production_correlation"]:
             try:
-                result["production_correlation"] = correlation(self.api.wait(self.path("production_correlation", alpha_id)))
+                result["production_correlation"] = correlation(fetch('production_correlation'))
             except ApiError as e:
                 result["evidence_errors"]["production_correlation"] = str(e)
         proof=result['pnl_isolation']
@@ -270,6 +293,8 @@ class BrainSimulator:
         result['evidence_source']['pnl_contract_sha256']=digest(self.paths.get('pnl_evidence',{}))
         result['evidence_source']['calendar_sha256']=result['daily_evidence'].get('calendar_sha256')
         result['evidence_source']['normalized_is_pnl_sha256']=digest({'pnl':result['pnl_changes'],'returns':result['daily_returns'],'isolation':result['pnl_isolation']})
+        from .checks import summarize_checks
+        result['check_state']=summarize_checks(result['checks'],self.config['policy']['required_checks'])
         # Deliberately discard os/test/train/prod/raw bodies. They never enter research memory.
         return result
 

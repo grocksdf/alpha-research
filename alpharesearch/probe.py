@@ -106,13 +106,19 @@ def one_simulation_probe(simulator: BrainSimulator, expression, report_path):
         _update(saved, result)
         raise
     except ApiError as error:
-        result.update(state="rejected", http_status=error.status, error=str(error))
+        result.update(state="rejected" if error.status in (400,401,403,422,429) else 'uncertain', http_status=error.status, error=str(error))
         _update(saved, result)
         raise
     result.update(state="polling", location=location)
     _update(saved, result)
     try:
-        value = getattr(simulator,'finish_probe',simulator.finish)(location)
+        if isinstance(simulator,BrainSimulator):
+            def bind(aid):
+                result['alpha_id']=aid
+                _update(saved,result)
+            value=simulator.finish_probe(location,on_alpha=bind)
+        else:
+            value = getattr(simulator,'finish_probe',simulator.finish)(location)
     except (ApiError, PollTimeout) as error:
         result.update(state="polling_incomplete", error=str(error))
         _update(saved, result)
@@ -120,34 +126,67 @@ def one_simulation_probe(simulator: BrainSimulator, expression, report_path):
     result.update({"state": "completed", "alpha_id": value["alpha_id"],
                    "simulator_mode": value.get("mode"), "metrics": value.get("metrics", {}),
                    "evidence_errors": value.get("evidence_errors", {})})
-    _verify_probe(simulator,result,value)
+    try:
+        _verify_probe(simulator,result,value)
+    except ResearchError as error:
+        result.update(state='reconciliation_required',error=str(error))
+        _update(saved,result)
+        raise
     _update(saved, result)
     return result
 
 
-def resume_simulation_probe(simulator: BrainSimulator, report_path):
-    """GET-only recovery from a saved Location. Never repeats the POST."""
+def resume_simulation_probe(simulator: BrainSimulator, report_path, alpha_id=None):
+    """GET-only recovery: persisted ID, Location, then account list + detail."""
     saved = Path(report_path)
     payload = json.loads(saved.read_text(encoding="utf-8"))
-    if payload.get("state") not in ("polling", "polling_incomplete",'metrics_incomplete'):
-        raise ResearchError("Only polling probe records can be resumed")
-    if payload.get("scope") != simulator.config["scope"]:
+    if payload.get("state") not in ('dispatching', 'uncertain', "polling", "polling_incomplete",'metrics_incomplete','reconciliation_required'):
+        raise ResearchError("Only unresolved probe records can be resumed")
+    if not _settings_match(simulator.config["scope"], payload.get("scope")):
         raise ResearchError("Probe scope does not match current settings")
     if payload.get('account_ref') and payload['account_ref']!=getattr(simulator,'account_ref',None):
         raise ResearchError('冒烟记录与当前登录账户不一致')
-    if not payload.get('location'): raise ResearchError('恢复记录缺少 Location')
-    location = simulator.api.url(payload.get("location", ""))
     try:
-        value = getattr(simulator,'finish_probe',simulator.finish)(location)
+        if isinstance(simulator, BrainSimulator):
+            from .reconciliation import assert_identity, recover_alpha
+            assert_identity(simulator, payload)
+            if alpha_id:
+                value = recover_alpha(simulator, payload, alpha_id)
+            elif payload.get('alpha_id'):
+                value = simulator.collect(payload['alpha_id'], minimal=True)
+            elif payload.get('location'):
+                try:
+                    def bind(aid):
+                        payload['alpha_id']=aid
+                        _update(saved,payload)
+                    value = simulator.finish_probe(simulator.api.url(payload['location']),on_alpha=bind)
+                except ApiError as error:
+                    if error.status in (401, 403):
+                        raise
+                    payload['location_error'] = str(error)
+                    value = simulator.collect(payload['alpha_id'],minimal=True) if payload.get('alpha_id') else recover_alpha(simulator, payload)
+            else:
+                value = recover_alpha(simulator, payload)
+        else:
+            value = getattr(simulator,'finish_probe',simulator.finish)(simulator.api.url(payload.get('location', '')))
+        # Persist the known ID before verification, so an incomplete/mismatched
+        # record never causes creation and does not lose the recovered identity.
+        payload['alpha_id'] = value['alpha_id']
+        if 'recovery' in value:
+            payload['recovery'] = value['recovery']
+        _verify_probe(simulator,payload,value)
     except (ApiError, PollTimeout) as error:
-        payload.update(state="polling_incomplete", error=str(error))
+        payload.update(state="reconciliation_required", error=str(error))
         _update(saved, payload)
         raise
-    payload.update({"state": "completed", "alpha_id": value["alpha_id"],
+    except ResearchError as error:
+        payload.update(state='reconciliation_required', error=str(error))
+        _update(saved, payload)
+        raise
+    payload.update({"alpha_id": value["alpha_id"],
                     "simulator_mode": value.get("mode"), "metrics": value.get("metrics", {}),
                     "evidence_errors": value.get("evidence_errors", {})})
     payload.pop("error", None)
-    _verify_probe(simulator,payload,value)
     _update(saved, payload)
     return payload
 
@@ -155,28 +194,29 @@ def resume_simulation_probe(simulator: BrainSimulator, report_path):
 def reconcile_simulation_probe(simulator,report_path,location):
     saved=Path(report_path);payload=json.loads(saved.read_text(encoding="utf-8"))
     if payload.get('state') not in ('dispatching','uncertain'):raise ResearchError('仅对账不确定的创建请求')
-    if payload.get('scope')!=simulator.config['scope'] or (payload.get('account_ref') and payload['account_ref']!=simulator.account_ref):raise ResearchError('对账账户/范围不匹配')
+    if not _settings_match(simulator.config['scope'],payload.get('scope')) or (payload.get('account_ref') and payload['account_ref']!=simulator.account_ref):raise ResearchError('对账账户/范围不匹配')
     payload.update(state='polling',location=simulator.api.url(location),manual_reconciliation=True)
     _update(saved,payload)
     return {'state':'polling','note':'已绑定人工核对的 Location；下一步只恢复 GET，仍需核对远程公式/设置'}
 
 
 def _settings_match(observed, requested):
-    """BRAIN may append server-owned dates and metadata to requested settings."""
-    return isinstance(observed, dict) and isinstance(requested, dict) and all(
-        observed.get(key) == value for key, value in requested.items()
-    )
+    from .reconciliation import settings_match
+    return settings_match(observed, requested)
 
 
 def _verify_probe(simulator,record,value):
     if isinstance(simulator,BrainSimulator):
-        if value.get('expression','').replace(' ','')!=record['expression'].replace(' ','') or not _settings_match(value.get('settings'),record['scope']):
+        from .reconciliation import expression_matches
+        if not expression_matches(value.get('expression'), record['expression']) or not _settings_match(value.get('settings'),record['scope']):
             raise ResearchError('真实冒烟结果的公式/设置不一致')
         from .brain import finite
         parsed=all(finite(value.get('metrics',{}).get(k)) is not None for k in ('sharpe','fitness','turnover'))
         record['metrics_parse_verified']=parsed
         record['state']='completed' if parsed else 'metrics_incomplete'
-    else: record['metrics_parse_verified']=False
+    else:
+        record['metrics_parse_verified']=False
+        record['state']='completed'
     record['submission_enabled_by_probe']=False
 
 
@@ -193,7 +233,7 @@ def require_smoke_receipt(config,user_id):
     value=json.loads(path.read_text(encoding='utf-8'))
     if value.get('state')!='completed' or value.get('metrics_parse_verified') is not True or value.get('observation_source')!='account_http':
         raise ResearchError('冒烟记录未完成真实指标解析，或来自脚本化测试')
-    if value.get('account_ref')!=digest(str(user_id)) or value.get('scope')!=config['scope'] or value.get('api_base_url')!=config['brain']['base_url']:
+    if value.get('account_ref')!=digest(str(user_id)) or not _settings_match(config['scope'],value.get('scope')) or value.get('api_base_url')!=config['brain']['base_url']:
         raise ResearchError('冒烟记录的账户、范围或 API 地址不匹配')
     return {'scope_verified':True,'account_verified':True,'submission_enabled':False}
 
@@ -212,7 +252,7 @@ def inspect_alpha_evidence(simulator,smoke_path,output):
     config=simulator.config
     if not re.fullmatch(r'[0-9a-f]{64}',str(simulator.account_ref)):raise ResearchError('须先确认当前登录账户身份')
     if record.get('state')!='completed' or record.get('metrics_parse_verified') is not True:raise ResearchError('须先完成单 Alpha 冒烟指标解析')
-    if record.get('account_ref')!=simulator.account_ref or record.get('scope')!=config['scope'] or record.get('api_base_url')!=config['brain']['base_url']:
+    if record.get('account_ref')!=simulator.account_ref or not _settings_match(config['scope'],record.get('scope')) or record.get('api_base_url')!=config['brain']['base_url']:
         raise ResearchError('冒烟记录账户、设置或 API 地址不匹配')
     alpha_id=record.get('alpha_id')
     if not isinstance(alpha_id,str) or not re.fullmatch(r'[A-Za-z0-9_-]+',alpha_id):raise ResearchError('缺少有效的已创建 Alpha ID')

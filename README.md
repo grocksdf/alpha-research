@@ -1,18 +1,39 @@
-# AlphaResearch V0.3.5
+# AlphaResearch V0.4.0
 
-一个 Research Agent，四个确定性组件。基于本次上传的 V0.1.1 继续开发，Python 3.11+，运行与测试均只依赖标准库。
+一个 Research Agent，四个确定性组件。基于仓库 v0.3.5 迭代，Python 3.11+，运行与测试均只依赖标准库。
 
-**代码功能已扩展；已完成当前账户只读接口探测并创建一次明确授权的
-`rank(close)` 冒烟 Simulation。** 真实批量研究、真实模型研究和真实数据有效性实验
-尚未执行；随附 Demo 仍是合成数据，不能说明 Alpha 有效，也没有资格或积分保证。
+**本版实现恢复、防重复创建、只读证据审计和定向研究协议。160 项离线测试通过。**
+本次环境没有 BRAIN 凭据和四个已有 Alpha 的 ID，未登录、未读取真实证据、未创建模拟、未提交。
+仓库早期文档记载过账户探测；这些历史记述不等于本次验收，也不证明 PnL 语义或 Alpha 有效。
+随附 Demo 仍是合成数据；真实 AI 优势、独立市场验证、积分和资格均未证明。
+
+## V0.4.0：先恢复与补证据，再执行有限实验
+
+- `resume-probe` 优先用已绑定 Alpha ID，其次 Location；Location 失效时用当前账户 Alpha 列表与详情 GET 对账。创建响应不确定也可只读查找，零个/多个匹配均停止，不重发 POST。自动匹配要求创建时间、公式、关键设置和账户全部一致。
+- `recover-trial` 支持跨版本只读恢复旧任务；原 run 快照和模拟预算不变，只追加证据。旧版本的新建/提交操作仍受快照保护。
+- 设置比较使用固定关键字段协议。服务端额外返回的 `startDate/endDate` 可存在；请求主动指定的日期仍比较。关键字段冲突、缺失和未支持的请求参数都会拒绝。设置中的日期不充当 IS 日期证据。
+- `audit-alphas` 读取已有 Alpha 的详情、Check、相关性和 PnL 结构/日期诊断。单位、累计/日频语义、实际日历或 IS 边界未核实时，保留未验证状态，不生成稳定性分数。
+- `SELF_CORRELATION` 必须明确 `PASS`；相关性端点的数值不能放行 `PENDING`。Check 的 `PASS/FAIL/PENDING/MISSING` 独立展示，仅通过 GET 刷新。审计命令始终不标记可提交。
+- 定向设计固定为两家族、六公式、四个单参数比较对，最多六次 Simulation，无自动附加敏感性实验。稳定 study_id 复用同一 run 与预算。独立留出一次性报告全部预注册比较，结果不回流给 Agent。
+
+快速入口（配置与完整步骤见 [v0.4.0 操作说明](docs/v0.4.0-recovery-evidence.md)）：
+
+```bash
+python -m alpharesearch resume-probe state/smoke-001.json
+python -m alpharesearch audit-alphas --manifest state/existing-alphas.json --output state/alphas-audit-001.json
+python -m alpharesearch directed-plan --study-id directed-001 --output state/directed-plan.json --candidates-output state/directed-candidates.json
+```
+
+`resume RUN_ID` 现在默认只恢复已有写请求的 GET；不会创建排队任务或参数扰动。
+只有显式使用 `--continue-research` 才继续新研究。未完成创建仍占预算，未知状态不触发重新 POST。
+PnL 契约新增 `pnl_unit` 与 `capital_unit` 必须一致；旧缓存缺单位依据会被隔离。
 
 ## V0.3.5：真实账户设置对账兼容
 
 真实单 Alpha 冒烟发现 BRAIN 会在请求设置之外返回 `startDate`、`endDate` 等
 服务端字段。对账现在验证所有请求设置保持一致，同时允许服务端附加只读元数据；
-任何请求字段被改变仍会拒绝。如果原 Simulation Location 已不再返回完成结果，则通过
-当前账户的 Alpha 列表和 Alpha 详情 GET 找回已创建对象并对账，不能重复发送
-Simulation POST。
+任何请求字段被改变仍会拒绝。历史流程曾人工用 Alpha 列表和详情 GET 找回对象；
+完整自动恢复实现见本版 v0.4.0，不重复发送 Simulation POST。
 
 ## V0.3.4：Windows/UTF-8 兼容性修复
 

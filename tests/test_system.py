@@ -40,6 +40,7 @@ def configure_pnl_contract(config,root,sessions=None):
     with path.open('w',newline='') as out:
         writer=csv.writer(out);writer.writerow(['date']);writer.writerows([[d] for d in sessions])
     contract={'reviewed':True,'review_note':'TEST ONLY synthetic cumulative values, no resets; fixed capital',
+        'pnl_unit':'USD','capital_unit':'USD',
         'value_semantics':'cumulative_cash_pnl_constant_capital_session_close','capital_path':['is','bookSize'],
         'calendar_reviewed':True,'calendar_id':'TEST-sessions','calendar_source':'TEST fixture, not exchange data',
         'calendar_review_note':'TEST every supplied date is a session','calendar_region':config['scope']['region'],
@@ -58,6 +59,7 @@ def fixture_daily():
         cumulative+=.2+math.sin(i*.71)
         rows.append({'date':d,'pnl':cumulative})
     context={'protocol':'brain-session-pnl-v1','value_semantics':'cumulative_cash_pnl_constant_capital_session_close',
+        'pnl_unit':'USD','capital_unit':'USD',
         'contract_sha256':'b'*64,'calendar_id':'TEST-calendar','calendar_sha256':'c'*64,'calendar_region':'USA',
         'calendar_source':'TEST ONLY','calendar_start':sessions[0],'calendar_end':sessions[-1],
         'start_date':sessions[0],'end_date':sessions[-1],'session_dates':sessions,'constant_capital':100.,'capital_path':['is','bookSize']}
@@ -68,7 +70,7 @@ def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None):
     return {"mode": "live", "alpha_id": "alpha123", "expression": expression, "settings": scope or {},
         "metrics": {"sharpe": 1.8, "fitness": 1.4, "turnover": 0.2},
         "checks": [{"name": k, "result": "PASS"} for k in
-                   ("LOW_SHARPE", "LOW_FITNESS", "CONCENTRATED_WEIGHT")],
+                   ("LOW_SHARPE", "LOW_FITNESS", "CONCENTRATED_WEIGHT",'SELF_CORRELATION')],
         "years": [{"year": str(y), "sharpe": s} for y, s in [(2020, 1.4), (2021, 0.5), (2022, 1.1)]],
         "self_correlation": 0.25, "production_correlation": None,
         **copy.deepcopy(fixture_daily()),
@@ -328,8 +330,8 @@ class EvaluationTests(Base):
 
     def test_pending_self_check_needs_presubmit_evidence(self):
         good = fixture_result()
-        good["checks"].append({"name": "SELF_CORRELATION", "result": "PENDING"})
-        self.assertTrue(evaluate(good, [fixture_result()]*2, self.config["policy"], True)["ready"])
+        good["checks"][-1]['result']='PENDING'
+        self.assertFalse(evaluate(good, [fixture_result()]*2, self.config["policy"], True)["ready"])
         good["self_correlation"] = None
         self.assertFalse(evaluate(good, [fixture_result()]*2, self.config["policy"], True)["ready"])
 
@@ -421,9 +423,9 @@ class EngineTests(Base):
         proposal = {"expression":"ts_mean(close,20)", "hypothesis":"hyp", "source":"test"}
         trial_id,_=engine.memory.add_trial(engine.run_id,proposal,engine.validator.validate(proposal["expression"]),engine.context)
         engine.execute(trial_id)
-        engine.resume()
+        engine.resume(continue_research=True)
         self.assertEqual(engine.memory.run(engine.run_id)["simulations"], 3)
-        engine.resume()
+        engine.resume(continue_research=True)
         self.assertEqual(engine.memory.run(engine.run_id)["simulations"], 3)
 
     def test_immutable_records_and_chain(self):

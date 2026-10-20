@@ -45,6 +45,9 @@ def reviewed_context(config,detail,bounds):
     if contract.get('reviewed') is not True or not str(contract.get('review_note','')).strip():
         raise ApiError('PnL 累计值、重置规则和交易日语义尚未由当前账户核实')
     if contract.get('value_semantics')!=SEMANTICS:raise ApiError('仅支持已核实的固定本金、无重置、交易日收盘累计现金 PnL')
+    unit=contract.get('pnl_unit')
+    if not isinstance(unit,str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{1,15}',unit) or contract.get('capital_unit')!=unit:
+        raise ApiError('PnL 与固定本金的单位尚未核实一致；不得猜测美元、百分比或基点')
     for name in ('calendar_id','calendar_source','calendar_review_note'):
         if not isinstance(contract.get(name),str) or not contract[name].strip():raise ApiError('缺少 '+name)
     if contract.get('calendar_reviewed') is not True or contract.get('calendar_region')!=config['scope']['region']:
@@ -84,6 +87,7 @@ def reviewed_context(config,detail,bounds):
     capital=finite(capital)
     if capital is None or capital<=0:raise ApiError('固定本金必须为正有限值')
     return {'protocol':PROTOCOL,'value_semantics':SEMANTICS,'contract_sha256':digest(contract),
+        'pnl_unit':unit,'capital_unit':unit,
         'calendar_id':contract['calendar_id'],'calendar_sha256':fingerprint,'calendar_region':contract['calendar_region'],
         'calendar_source':contract['calendar_source'],'calendar_start':lower,'calendar_end':upper,
         'start_date':start,'end_date':end,'session_dates':sessions,'constant_capital':capital,'capital_path':path}
@@ -137,6 +141,8 @@ def daily_evidence_valid(result):
     proof=result.get('daily_evidence')
     if not pnl_isolation_valid(result) or not isinstance(proof,dict):return False
     if proof.get('protocol')!=PROTOCOL or proof.get('status')!='complete' or proof.get('value_semantics')!=SEMANTICS:return False
+    unit=proof.get('pnl_unit')
+    if not isinstance(unit,str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{1,15}',unit) or proof.get('capital_unit')!=unit:return False
     for name in ('calendar_sha256','contract_sha256'):
         if not re.fullmatch(r'[0-9a-f]{64}',str(proof.get(name,''))):return False
     isolation=result['pnl_isolation'];sessions=proof.get('session_dates')

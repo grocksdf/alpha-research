@@ -31,19 +31,15 @@ def evaluate(result, neighbors, policy, account_verified=False):
         reject.append("low_fitness")
     if finite(metrics.get('turnover')) is not None and not policy["min_turnover"] <= metrics["turnover"] <= policy["max_turnover"]:
         reject.append("turnover_outside_research_range")
-    checks = result.get("checks", [])
-    by_name = {x["name"]: x.get("result") for x in checks}
-    for name in policy["required_checks"]:
-        if name not in by_name:
-            missing.append("missing_check:"+name)
-    for check in checks:
-        status, name = check.get("result"), check["name"]
+    from .checks import summarize_checks
+    check_summary = summarize_checks(result.get('checks'),policy['required_checks'])
+    missing.extend(check_summary['errors'])
+    for name, status in check_summary['by_name'].items():
         if status == "PASS":
             continue
-        # Some account tiers only resolve this check after submit. Pre-submit endpoint is the gate.
-        if name == "SELF_CORRELATION" and status == "PENDING" and finite(result.get("self_correlation")) is not None:
-            continue
-        if status in ("FAIL", "WARNING"):
+        if status == 'MISSING':
+            missing.append('missing_check:'+name)
+        elif status == "FAIL":
             reject.append("platform_check:"+name+":"+status)
         else:
             missing.append("unresolved_check:"+name+":"+str(status))
@@ -89,6 +85,7 @@ def evaluate(result, neighbors, policy, account_verified=False):
     research_eligible=core_complete and not reject
     return {"status": "ready_for_human_review" if ready else "rejected" if reject else "evidence_incomplete",
             "ready": ready, "rejections": sorted(set(reject)), "missing": sorted(set(missing)),
+            'check_state':check_summary,
             'research_eligible':research_eligible,
             'research_status':'continue_research' if research_eligible and not ready else 'review_ready' if ready else 'rejected' if reject else 'needs_core_metrics',
             "positive_window_fraction": positive_fraction,

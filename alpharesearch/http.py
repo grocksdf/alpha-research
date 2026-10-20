@@ -65,7 +65,8 @@ class JsonTransport:
                 raise error("读取响应失败；写操作禁止自动重发" if method == "POST" else "读取 API 响应失败") from e
             hdr = {k.lower(): v for k, v in result.headers.items()}
             if len(raw) > 8_000_000:
-                raise ApiError("API 响应超过大小限制")
+                error = AmbiguousWrite if method == 'POST' else ApiError
+                raise error("API 响应超过大小限制；写操作禁止自动重发")
             try:
                 data = json.loads(raw) if raw.strip() else None
             except (ValueError, UnicodeError):

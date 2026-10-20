@@ -238,6 +238,8 @@ def evaluate_schedule(panel,signals,schedule,plan):
 
 
 def validate_plan(plan):
+    if plan.get('holdout_mode','single_selected') not in ('single_selected','directed_fixed_comparisons_v1'):
+        raise ResearchError('未知留出模式')
     if plan.get('data_permission_confirmed') is not True:raise ResearchError('须由数据负责人确认数据研究权限')
     for name in ('study_id','dataset_id','data_source','point_in_time_review'):
         if not isinstance(plan.get(name),str) or not plan[name].strip():raise ResearchError('缺少 '+name)
@@ -294,6 +296,9 @@ def ledger(path):
 def freeze(panel_path,candidates_path,plan_path,config,ledger_path,output):
     candidates=json.loads(Path(candidates_path).read_text(encoding="utf-8"));plan=validate_plan(json.loads(Path(plan_path).read_text(encoding="utf-8")))
     if not isinstance(candidates,list) or not 1<=len(candidates)<=20 or not all(isinstance(c,dict) and isinstance(c.get('expression'),str) for c in candidates):raise ResearchError('预注册需 1..20 个公式')
+    if plan.get('holdout_mode')=='directed_fixed_comparisons_v1':
+        from .directed import fixed_candidates
+        if candidates!=fixed_candidates():raise ResearchError('定向留出必须冻结完整六公式设计与四个比较对，禁止事后筛选')
     validator=Validator(config['catalog_data'],config['scope'],config['rules'])
     if plan['delay']!=config['scope']['delay']:raise ResearchError('本地 Delay 必须与冻结研究范围一致')
     panel=Panel(panel_path,before=plan['holdout_start']);signals=prepare(panel,candidates,validator)
@@ -368,7 +373,8 @@ def walk_forward(manifest_path,ledger_path):
 
 def final_holdout(manifest_path,ledger_path):
     m=verified_manifest(manifest_path,ledger_path);plan=m['plan']
-    if not m['frozen_selected_id']:raise ResearchError('训练期没有合格公式，不揭示留出期')
+    comparison=plan.get('holdout_mode')=='directed_fixed_comparisons_v1'
+    if not m['frozen_selected_id'] and not comparison:raise ResearchError('训练期没有合格公式，不揭示留出期')
     location=m['holdout_registry']
     register,_=registry.connect(location['path'],expected_id=location['registry_id'])
     db=ledger(ledger_path)
@@ -388,16 +394,30 @@ def final_holdout(manifest_path,ledger_path):
             registry.bind_semantic_hash(register,key,semantic)
             panel=Panel(m['panel_path'],through=plan['holdout_end'])
             validator=Validator(m['catalog'],m['scope'],m['rules'])
-            selected_candidates=[c for c in m['candidates'] if validator.validate(c['expression']).fingerprint==m['frozen_selected_id']]
+            selected_candidates=m['candidates'] if comparison else [c for c in m['candidates'] if validator.validate(c['expression']).fingerprint==m['frozen_selected_id']]
             signals=prepare(panel,selected_candidates,validator)
             indices=[i for i,d in enumerate(panel.dates[:-1]) if plan['holdout_start']<=d and panel.dates[i+1]<=plan['holdout_end']]
             if len(indices)<plan.get('min_holdout_observations',20):raise ResearchError('留出期观测不足')
-            result=evaluate_schedule(panel,signals,[(i,m['frozen_selected_id']) for i in indices],plan)
+            if comparison:
+                from .directed import fixed_candidates
+                if m['candidates']!=fixed_candidates():raise ResearchError('定向验证公式设计不一致')
+                metrics={c['key']:evaluate_schedule(panel,signals,[(i,validator.validate(c['expression']).fingerprint) for i in indices],plan)['metrics'] for c in m['candidates']}
+                pairs=[]
+                for c in m['candidates']:
+                    if not c['parent_key']:continue
+                    a,b=metrics[c['parent_key']],metrics[c['key']]
+                    delta={k:(b[k]-a[k] if a[k] is not None and b[k] is not None else None)
+                           for k in ('net_sharpe','mean_turnover','mean_rank_ic')}
+                    pairs.append({'baseline':c['parent_key'],'variant':c['key'],'change':c['change'],'delta':delta})
+                result={'metrics_by_candidate':metrics,'prespecified_comparisons':pairs,'selected_after_validation':False,
+                    'decision':'report_all_prespecified_pairs_no_posthoc_winner','feedback_to_agent':False}
+            else:
+                result=evaluate_schedule(panel,signals,[(i,m['frozen_selected_id']) for i in indices],plan)
         except BaseException:
             db.execute("UPDATE studies SET state='failed_after_reveal' WHERE id=?",(plan['study_id'],))
             register.execute("UPDATE reveal_claims SET state='failed_after_reveal' WHERE claim_key=? AND state<>'blocked_duplicate'",(key,))
             raise
-        final={'study_id':plan['study_id'],'mode':'one_shot_final_time_holdout','selected_id':m['frozen_selected_id'],**result,
+        final={'study_id':plan['study_id'],'mode':'one_shot_directed_comparison' if comparison else 'one_shot_final_time_holdout','selected_id':None if comparison else m['frozen_selected_id'],**result,
             'synthetic':m['synthetic'],'protocol_completed':True,'holdout_revealed_once':True,
             'dataset_id':plan['dataset_id'],'holdout_protocol':registry.PROTOCOL,
             'holdout_claim_key':key,'holdout_semantic_sha256':semantic,

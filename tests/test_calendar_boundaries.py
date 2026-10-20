@@ -26,6 +26,7 @@ class CalendarBoundaryTests(Base):
         # Simulate the v0.3.2 proof shape without relying on the repaired creator.
         # PnL is complete relative to this truncated calendar; its IS edges are not.
         context={'protocol':'brain-session-pnl-v1','value_semantics':'cumulative_cash_pnl_constant_capital_session_close',
+            'pnl_unit':'USD','capital_unit':'USD', # Isolate the boundary regression from the v0.4 unit gate.
             'contract_sha256':'b'*64,'calendar_id':'TEST-calendar','calendar_sha256':'c'*64,'calendar_region':'USA',
             'calendar_source':'TEST ONLY','calendar_start':start,'calendar_end':end,
             'start_date':start,'end_date':end,'session_dates':sessions,'constant_capital':100.,'capital_path':['is','bookSize']}

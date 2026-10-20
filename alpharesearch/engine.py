@@ -53,12 +53,21 @@ class Engine:
         if trial["state"] in ("completed", "rejected", "abandoned", "failed"):
             return {"trial_id": trial_id, "state": trial["state"]}
         if trial["state"] in ("dispatching", "uncertain"):
+            if isinstance(self.simulator,BrainSimulator):
+                return self.recover_trial(trial_id)
             raise ResearchError("存在无 Location 的不确定写请求；请在平台对账后使用 reconcile")
         if trial['state']=='queued' and self.config['mode']=='live' and not self.config.get('safety',{}).get('live_research_enabled',False):
             raise ResearchError('真实研究创建开关关闭；未占用模拟预算')
         try:
             if trial["state"] == "queued":
-                if not self.memory.claim(trial_id, self.config["rules"]["max_simulations_per_run"]):
+                account_ref=getattr(self.simulator,'account_ref',None)
+                if isinstance(self.simulator,BrainSimulator) and not account_ref:
+                    raise ResearchError('须先验证当前登录账户；未发送 POST')
+                budget=self.config['rules']['max_simulations_per_run']
+                if self.memory.db.execute('SELECT 1 FROM directed_studies WHERE run_id=?',(self.run_id,)).fetchone():
+                    budget=min(budget,6)
+                if not self.memory.claim(trial_id, budget,
+                        account_ref,self.config['brain']['base_url']):
                     return {"trial_id": trial_id, "state": "already_claimed"}
                 started=time.monotonic()
                 try:
@@ -69,10 +78,26 @@ class Engine:
             else:
                 location = trial["location"]
             if not location:
+                if isinstance(self.simulator,BrainSimulator):
+                    return self.recover_trial(trial_id)
                 raise ResearchError("可恢复任务缺少 Location")
             started=time.monotonic()
             try:
-                result = self.simulator.finish(location)
+                if isinstance(self.simulator,BrainSimulator):
+                    trial=self.memory.trial(trial_id)
+                    if trial.get('account_ref'):
+                        from .reconciliation import assert_identity
+                        assert_identity(self.simulator,self.recovery_record(trial))
+                    if trial.get('alpha_id'):
+                        result=self.simulator.collect(trial['alpha_id'])
+                    else:
+                        try:
+                            result=self.simulator.finish(location,on_alpha=lambda aid:self.memory.bind_alpha(trial_id,aid))
+                        except ApiError as error:
+                            if error.status in (401,403):raise
+                            return self.recover_trial(trial_id)
+                else:
+                    result = self.simulator.finish(location)
             finally:
                 self.memory.cost(self.run_id,'simulation_poll',time.monotonic()-started,detail={'trial_id':trial_id})
             self.verify_result(trial, result)
@@ -99,10 +124,43 @@ class Engine:
             raise ApiError("平台证据缺少公式/设置，无法对账")
         if self.validator.validate(result["expression"]).canonical != self.validator.validate(trial["expression"]).canonical:
             raise ApiError("远程 Alpha 公式与本地实验不匹配")
-        if any(result["settings"].get(k) != v for k, v in self.config["scope"].items()):
+        from .reconciliation import settings_match
+        if not settings_match(result['settings'],self.config['scope']):
             raise ApiError("远程 Alpha 设置与本地实验不匹配")
 
+    def recovery_record(self,trial):
+        return {**{k:trial.get(k) for k in ('expression','account_ref','api_base_url','dispatched_at')},
+                'created_at':trial['created'],'scope':self.config['scope']}
+
+    def recover_trial(self,trial_id,alpha_id=None):
+        """No POST, including for dispatching/uncertain tasks without a Location."""
+        from .reconciliation import assert_identity,recover_alpha
+        trial=self.memory.trial(trial_id)
+        if trial['run_id']!=self.run_id or trial['state'] not in ('dispatching','uncertain','polling','paused'):
+            raise ResearchError('只能恢复当前 run 的未完成任务')
+        record=self.recovery_record(trial)
+        try:
+            assert_identity(self.simulator,record)
+            if trial.get('alpha_id') and not alpha_id:
+                value=self.simulator.collect(trial['alpha_id'],minimal=True)
+            else:
+                value=recover_alpha(self.simulator,record,alpha_id)
+            self.verify_result(trial,value)
+            self.memory.bind_alpha(trial_id,value['alpha_id'],value.get('recovery'))
+            self.memory.set_state(trial_id,'paused',error='Alpha 已绑定；只读刷新证据')
+            result=self.simulator.collect(value['alpha_id'])
+            self.verify_result(trial,result)
+            self.memory.result(trial_id,result)
+            return {'trial_id':trial_id,'state':'completed','alpha_id':value['alpha_id'],
+                    'simulation_created':False,'recovery':value.get('recovery'),'metrics':result['metrics']}
+        except ApiError as error:
+            current=self.memory.trial(trial_id)
+            self.memory.set_state(trial_id,'paused' if current.get('alpha_id') else 'uncertain',error=str(error))
+            raise
+
     def propose(self, expression, hypothesis, source, parent_id=None, parent_intent_id=None):
+        if self.memory.db.execute('SELECT 1 FROM directed_studies WHERE run_id=?',(self.run_id,)).fetchone():
+            raise ResearchError('定向研究已冻结六公式；不能通过 Agent 扩展')
         for name, value, maxlen in (("expression", expression, 5000), ("hypothesis", hypothesis, 4000), ("source", source, 2000)):
             if not isinstance(value, str) or not value.strip() or len(value) > maxlen:
                 raise ResearchError(f"{name} 缺失或过长")
@@ -144,6 +202,8 @@ class Engine:
         return outcome
 
     def ensure_sensitivity(self, trial_id):
+        if self.memory.db.execute('SELECT 1 FROM directed_studies WHERE run_id=?',(self.run_id,)).fetchone():
+            return
         trial = self.memory.trial(trial_id)
         intents=[i for i in self.memory.intents(self.run_id,trial_id) if i['state']=='active']
         if not intents and trial['run_id']==self.run_id and trial['kind']=='candidate':
@@ -213,11 +273,13 @@ class Engine:
         self.memory.transaction(work)
         return {'trial_id':trial_id,'intent_id':target,'state':'abandoned'}
 
-    def resume(self):
+    def resume(self,continue_research=False):
         outcomes = []
         for trial in self.memory.trials(self.run_id):
-            if trial["state"] in ("queued", "paused", "polling", "dispatching", "uncertain"):
+            if trial["state"] in ("paused", "polling", "dispatching", "uncertain") or (continue_research and trial['state']=='queued'):
                 outcomes.append(self.execute(trial["id"]))
+        if not continue_research:
+            return outcomes
         for trial in self.memory.trials(self.run_id):
             self.ensure_sensitivity(trial["id"])
         for trial_id in {i['trial_id'] for i in self.memory.intents(self.run_id)}:

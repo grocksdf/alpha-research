@@ -66,8 +66,15 @@ class Memory:
           id INTEGER PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id), category TEXT NOT NULL,
           seconds REAL NOT NULL, input_tokens INTEGER, output_tokens INTEGER,
           usd REAL, estimated INTEGER NOT NULL, detail TEXT NOT NULL, created TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS directed_studies(
+          study_id TEXT PRIMARY KEY,run_id TEXT UNIQUE NOT NULL REFERENCES runs(id),
+          plan_hash TEXT NOT NULL,created TEXT NOT NULL);
         """)
-        for table in ("trials", "results", "events", "candidate_promotions", "research_intents", "sensitivity_refs", "research_notes", "costs"):
+        columns={row[1] for row in self.db.execute('PRAGMA table_info(tasks)')}
+        for name in ('account_ref','api_base_url','dispatched_at','alpha_id'):
+            if name not in columns:
+                self.db.execute('ALTER TABLE tasks ADD COLUMN '+name+' TEXT')
+        for table in ("trials", "results", "events", "candidate_promotions", "research_intents", "sensitivity_refs", "research_notes", "costs",'directed_studies'):
             for op in ("UPDATE", "DELETE"):
                 self.db.execute(f"CREATE TRIGGER IF NOT EXISTS immutable_{table}_{op} BEFORE {op} ON {table} BEGIN SELECT RAISE(ABORT, 'immutable research record'); END")
         self.migrate_intents()
@@ -204,13 +211,13 @@ class Memory:
                 trial_id, run_id, proposal["expression"], proposal["hypothesis"], proposal["source"], parent_id, kind,
                 validated.fingerprint if validated else None, validated.family if validated else None, context, now()))
             state = "queued" if validated else "rejected"
-            self.db.execute("INSERT INTO tasks VALUES(?,?,?,?,?)", (trial_id, state, None, None, now()))
+            self.db.execute("INSERT INTO tasks(trial_id,state,location,error,updated) VALUES(?,?,?,?,?)", (trial_id, state, None, None, now()))
             self.event(run_id, "trial_created", {"trial_id": trial_id, **proposal, "parent_id": parent_id, "kind": kind, "state": state})
             return trial_id, True
         return self.transaction(work)
 
     def trial(self, trial_id):
-        row = self.db.execute("SELECT t.*,q.state,q.location,q.error FROM trials t JOIN tasks q ON q.trial_id=t.id WHERE t.id=?", (trial_id,)).fetchone()
+        row = self.db.execute("SELECT t.*,q.state,q.location,q.error,q.account_ref,q.api_base_url,q.dispatched_at,q.alpha_id FROM trials t JOIN tasks q ON q.trial_id=t.id WHERE t.id=?", (trial_id,)).fetchone()
         if not row:
             raise ResearchError("trial_id 不存在")
         return dict(row)
@@ -222,7 +229,7 @@ class Memory:
         return dict(row) if row else None
 
     def trials(self, run_id):
-        return [dict(r) for r in self.db.execute("SELECT t.*,q.state,q.location,q.error FROM trials t JOIN tasks q ON t.id=q.trial_id WHERE run_id=? ORDER BY t.created", (run_id,))]
+        return [dict(r) for r in self.db.execute("SELECT t.*,q.state,q.location,q.error,q.account_ref,q.api_base_url,q.dispatched_at,q.alpha_id FROM trials t JOIN tasks q ON t.id=q.trial_id WHERE run_id=? ORDER BY t.created", (run_id,))]
 
     def latest(self, trial_id):
         row = self.db.execute("SELECT payload FROM results WHERE trial_id=? ORDER BY id DESC LIMIT 1", (trial_id,)).fetchone()
@@ -244,16 +251,35 @@ class Memory:
             self.event(trial["run_id"], "task_state", {"trial_id": trial_id, "state": state, "error": error})
         self.transaction(work)
 
-    def claim(self, trial_id, limit):
+    def bind_alpha(self,trial_id,alpha_id,recovery=None):
+        import re
+        if not isinstance(alpha_id,str) or not re.fullmatch(r'[A-Za-z0-9_-]+',alpha_id):raise ResearchError('无效 Alpha ID')
+        trial=self.trial(trial_id)
+        def work():
+            existing=self.db.execute('SELECT alpha_id FROM tasks WHERE trial_id=?',(trial_id,)).fetchone()[0]
+            if existing and existing!=alpha_id:raise ResearchError('任务已经绑定其他 Alpha；禁止覆盖')
+            self.db.execute('UPDATE tasks SET alpha_id=?,updated=? WHERE trial_id=?',(alpha_id,now(),trial_id))
+            self.event(trial['run_id'],'alpha_bound',{'trial_id':trial_id,'alpha_id':alpha_id,'recovery':recovery})
+        self.transaction(work)
+
+    def claim(self, trial_id, limit, account_ref=None, api_base_url=None):
         trial = self.trial(trial_id)
         def work():
+            if account_ref and self.db.execute('''SELECT 1 FROM tasks q JOIN trials t ON q.trial_id=t.id
+                WHERE t.context=? AND q.state IN ('dispatching','uncertain') AND t.id<>?''',
+                (trial['context'],trial_id)).fetchone():
+                raise ResearchError('当前范围仍有不确定创建；先只读对账，禁止新增 POST')
             changed = self.db.execute("UPDATE tasks SET state='dispatching',updated=? WHERE trial_id=? AND state='queued'", (now(), trial_id)).rowcount
             if not changed:
                 return False
             changed = self.db.execute("UPDATE runs SET simulations=simulations+1 WHERE id=? AND simulations<?", (trial["run_id"], limit)).rowcount
             if not changed:
                 raise ResearchError("模拟预算已用完（含参数扰动和不确定写请求）")
-            self.event(trial["run_id"], "simulation_reserved", {"trial_id": trial_id})
+            dispatched_at=now()
+            self.db.execute('UPDATE tasks SET account_ref=?,api_base_url=?,dispatched_at=? WHERE trial_id=?',
+                (account_ref,api_base_url,dispatched_at,trial_id))
+            self.event(trial["run_id"], "simulation_reserved", {"trial_id": trial_id,'dispatched_at':dispatched_at,
+                'account_ref':account_ref,'api_base_url':api_base_url})
             return True
         return self.transaction(work)
 

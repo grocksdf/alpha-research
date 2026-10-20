@@ -1,3 +1,14 @@
+# V0.4.0 — Recovery and evidence before optimization
+
+- Account-list/detail GET recovery for dead Locations and ambiguous creates; zero/multiple/incomplete matches fail closed.
+- Persisted account/API/dispatch/Alpha bindings; uncertainty blocks new writes in the research context. Default resume creates no simulations or neighbors.
+- Upgrade-safe GET recovery preserves historical snapshots and simulation spend.
+- Shared key-setting protocol permits extra server dates while enforcing actual parameter conflicts.
+- Existing-Alpha audits retain provenance and unverified PnL date/schema diagnostics without guessing units, calendars or IS bounds.
+- PnL/capital units must agree; explicit SELF_CORRELATION PASS is required, even with numeric correlation evidence.
+- Frozen six-formula reversal/VWAP plan, stable budget, single-parameter logs and one-shot reporting of all prespecified independent comparisons.
+- 160 offline tests pass. No live account, real evidence, simulation, market validation, model inference or submission executed this session.
+
 # V0.3.5 — Live settings reconciliation
 
 - Real BRAIN smoke testing showed that Alpha details may append server-owned settings such as `startDate` and `endDate`.
