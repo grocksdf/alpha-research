@@ -1,11 +1,27 @@
-# AlphaResearch V0.4.1
+# AlphaResearch V0.4.2
 
 一个 Research Agent，四个确定性组件。基于仓库 v0.3.5 迭代，Python 3.11+，运行与测试均只依赖标准库。
 
-**本版加强账户级串行锁、Recordset 严格解析、离线预览和发布校验，192 项离线测试通过。**
+**本版统一继续研究的预览与预算确认，并增强旧结果迁移容错，212 项离线测试通过。**
 本次环境没有 BRAIN 凭据和四个已有 Alpha 的 ID，未登录、未读取真实证据、未创建模拟、未提交。
 仓库早期文档记载过账户探测；这些历史记述不等于本次验收，也不证明 PnL 语义或 Alpha 有效。
 随附 Demo 仍是合成数据；真实 AI 优势、独立市场验证、积分和资格均未证明。
+
+## v0.4.2：继续研究也必须确认预览
+
+`resume --continue-research` 现在与 `run`、`directed-run` 使用相同的预览哈希和本次新建上限。
+真实调用可能创建模拟时，缺失确认会在登录前被拒绝；执行器在认证后再次核对，防止预览过期。
+排队任务和确定性参数扰动共用本次上限，原 run 总预算与六公式上限仍然生效。
+
+```bash
+python -m alpharesearch resume RUN_ID --continue-research --dry-run
+python -m alpharesearch resume RUN_ID --continue-research --confirm-preview PREVIEW_SHA256 --max-new-simulations 2
+```
+
+不带 `--continue-research` 的恢复仍只使用 GET，不新建或扩展参数扰动。
+`metrics=null`、数组、字符串或损坏的外层 JSON 不再触发迁移 AttributeError；
+异常记录保持原样并标记 remote unresolved，不影响正常记录迁移，也不释放其串行锁。
+完整步骤与版本兼容说明见 [v0.4.2 操作说明](docs/v0.4.2-resume-history.md)。
 
 ## v0.4.1：严格串行与真实实验预览
 
@@ -45,7 +61,7 @@ python -m alpharesearch directed-plan --study-id directed-001 --output state/dir
 ```
 
 `resume RUN_ID` 现在默认只恢复已有写请求的 GET；不会创建排队任务或参数扰动。
-只有显式使用 `--continue-research` 才继续新研究。未完成创建仍占预算，未知状态不触发重新 POST。
+真实继续研究还须确认当前预览哈希及本次新建上限；未完成创建仍占预算，未知状态不触发重新 POST。
 PnL 契约新增 `pnl_unit` 与 `capital_unit` 必须一致；旧缓存缺单位依据会被隔离。
 
 ## V0.3.5：真实账户设置对账兼容

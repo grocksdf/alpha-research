@@ -1,33 +1,33 @@
 {
-  "run_id": "4b0254ca6fd24a70",
+  "run_id": "af4d6eb5228b4b6a",
   "mode": "demo",
-  "created_at": "2026-10-20T19:22:38.288147+00:00",
+  "created_at": "2026-10-20T19:57:26.151893+00:00",
   "research_arm": {
     "agent": "unspecified"
   },
-  "snapshot_hash": "2efe475d36f85b09365b1a7c50fac7bca33e2f9e263127c89d5d8d18c9e8e345",
+  "snapshot_hash": "5d6612385adc24fa709522e007cdfc1c0458bd1708fbfd5fe03b7541344f510b",
   "snapshot": {
     "code": {
-      "__init__.py": "63cb0df3361edfde911cc6f3cde27e472567c7ba2eff93a3cbbf10064ab22485",
+      "__init__.py": "283b9ed67a5804bd92f3926d32985fd2ad34ac5d0c705bbcdced7cad0aa142f1",
       "__main__.py": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279",
       "agent.py": "1cc1424f8d871df33cf8f94811b4a636ac40e31c6e4a64b4c713f37f0e4e4b3c",
       "batch.py": "ca783c14e2763e87aebffbe04bae66c62aa9a3036479a7219a56342878ca0cac",
       "benchmark.py": "fa2a288c01417eb47d1c633b2d452dc6e6c79a0b517471b06fe03c261f923f00",
       "brain.py": "690f25d1aded0948de054453c99515fca7d3bb525faf5b6dd86df29dca34d891",
       "checks.py": "3afadf44a2f8bb42d9926b2e8bafce786399f125c2c1f15da3a361ee7db8c437",
-      "cli.py": "1bf421ee2e83b678a2a6199f3f4bbe3cbc1ca46cdffe99e17e6b2f73094762ab",
+      "cli.py": "83e4e901a202794b566512c2f223b9acce9b44b03601fa44315c96e3799599c6",
       "common.py": "9b59cec90ce8c94e7c878e70318507fa2b219e563bf52210089d06b81594ba12",
       "directed.py": "6ef87b89efe69e8054ead2b79bfd1ed674e221b9f9758038a6d782f1c033e264",
-      "engine.py": "cb08acab42fe8a3e8331c463667473d33c49b0f67924deae295e145dd4505a40",
+      "engine.py": "9948eb7058b0df2ae0ed0c1d9eb41a53c153abe07a8da0767e75fd54aab10830",
       "evaluator.py": "286c7ea45f9c23546dc98854fae46734ed8ad2794004b5d90a489a3c8a4a4ad2",
       "evidence_audit.py": "8cc69171f75eeadbe8496be700bee652ece8acba563036f5a2dca7ebd2cbfb90",
       "holdout_registry.py": "e69de070b93f0221b24c263d174a4d76a124a186df4fc1cc8e91d2dabc5cadda",
       "http.py": "26650d4942a72c779fa56a161c1a3b2da34574b95d16aec1719a2589008e9feb",
       "local_validation.py": "5091b50dbe2c1b7b72d40390df7e99a33f48061b086dc88a14c7c0c035389b24",
-      "memory.py": "38afc44f57b1ed130ea1235af6bdf3bf804e1ae9fb651155bd6b095b187a670d",
+      "memory.py": "82782e44120d454f45db8446f6e51d6ac96ec9c00d0f6305e7b1bdeba73757ad",
       "papers.py": "bb5733035efccade568440ccd3baf82ee4574d08c795f9b9aaa4d1a1a584594c",
       "pnl_evidence.py": "68679ce215073cc5134ee79a2bb552e58bd45d7fe1eddefba2f5cd1e78a7f23b",
-      "preview.py": "448d7f4e1927019425b1a21fedcf437fa7800c866f2951be9453e37f644bcde7",
+      "preview.py": "d8b3d3daf4386c076f63b1cb938d3825930e937f74af3eb35f3ca3fe1cad9536",
       "probe.py": "0477dea034fa23b59308e4484a85663ee412c67c2a7066d7445b5bcd4709c3a1",
       "reconciliation.py": "07b1f9fbec89e3b025f65484ca346885e60a8e3761fef3a869e61ea01db8a26a",
       "research.py": "51206a6bacf0a5c666b437293411da01c7a3ad6620266a20fe6b539d5f2bc020",
@@ -262,63 +262,63 @@
   },
   "research_intents": [
     {
-      "id": "a2c1d18ea2894988",
-      "run_id": "4b0254ca6fd24a70",
-      "trial_id": "d24b9d369e5e472a",
+      "id": "f6cb54ecb3ee4606",
+      "run_id": "af4d6eb5228b4b6a",
+      "trial_id": "4823c8aebe594d72",
       "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
       "source": "固定规则基线：短期反转，未经实证",
       "parent_intent_id": null,
-      "created": "2026-10-20T19:22:38.139658+00:00",
+      "created": "2026-10-20T19:57:26.048124+00:00",
       "state": "active",
       "reason": null
     },
     {
-      "id": "1035100bc75e4192",
-      "run_id": "4b0254ca6fd24a70",
-      "trial_id": "17a93614085246ba",
+      "id": "870c525c3be74fb0",
+      "run_id": "af4d6eb5228b4b6a",
+      "trial_id": "cc31abe6a6de47f4",
       "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
       "source": "固定规则基线：价格动量，未经实证",
       "parent_intent_id": null,
-      "created": "2026-10-20T19:22:38.180376+00:00",
+      "created": "2026-10-20T19:57:26.067786+00:00",
       "state": "active",
       "reason": null
     },
     {
-      "id": "212fa4c5a7d24eb0",
-      "run_id": "4b0254ca6fd24a70",
-      "trial_id": "bf58fa4cd4f841a6",
+      "id": "1abb906e4c13464d",
+      "run_id": "af4d6eb5228b4b6a",
+      "trial_id": "66a136f076044425",
       "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
       "source": "固定规则基线：低波动，未经实证",
       "parent_intent_id": null,
-      "created": "2026-10-20T19:22:38.201546+00:00",
+      "created": "2026-10-20T19:57:26.085421+00:00",
       "state": "active",
       "reason": null
     },
     {
-      "id": "2837ea2b288b49c3",
-      "run_id": "4b0254ca6fd24a70",
-      "trial_id": "f8d4e7f73c1f47ee",
+      "id": "15ef10ad29624e58",
+      "run_id": "af4d6eb5228b4b6a",
+      "trial_id": "c66a5bccffb34c0b",
       "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
       "source": "固定规则基线：价量压力，未经实证",
       "parent_intent_id": null,
-      "created": "2026-10-20T19:22:38.223278+00:00",
+      "created": "2026-10-20T19:57:26.103806+00:00",
       "state": "active",
       "reason": null
     },
     {
-      "id": "4255e24dffa84c82",
-      "run_id": "4b0254ca6fd24a70",
-      "trial_id": "752d70314a33452f",
+      "id": "1c856a3112ef4b86",
+      "run_id": "af4d6eb5228b4b6a",
+      "trial_id": "0dcd851f61c149a1",
       "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
       "source": "固定规则基线：量价关系，未经实证",
       "parent_intent_id": null,
-      "created": "2026-10-20T19:22:38.259029+00:00",
+      "created": "2026-10-20T19:57:26.121263+00:00",
       "state": "active",
       "reason": null
     }
   ],
   "costs": {
-    "measured_seconds": 0.0117875930000082,
+    "measured_seconds": 0.010252610999486933,
     "input_tokens": 0,
     "output_tokens": 0,
     "token_usage_complete": false,
@@ -334,10 +334,10 @@
     {
       "structural_family": "39951cfd9a8f3fe1ed2ecf23da11d4c7e32491415f7d46779a12cb9a22aa8ac9",
       "trial_ids": [
-        "d24b9d369e5e472a"
+        "4823c8aebe594d72"
       ],
       "intent_ids": [
-        "a2c1d18ea2894988"
+        "f6cb54ecb3ee4606"
       ],
       "tags": [],
       "states": {
@@ -349,10 +349,10 @@
     {
       "structural_family": "7cc8117c4f7d96c73950a535f21fa59d36584da5d9570b5d7dad84f48c889fc8",
       "trial_ids": [
-        "17a93614085246ba"
+        "cc31abe6a6de47f4"
       ],
       "intent_ids": [
-        "1035100bc75e4192"
+        "870c525c3be74fb0"
       ],
       "tags": [],
       "states": {
@@ -364,10 +364,10 @@
     {
       "structural_family": "132cfd83403877dd3bc2a7549d509b727ff7cbf30b922b5835b61a3bfb40d0cf",
       "trial_ids": [
-        "bf58fa4cd4f841a6"
+        "66a136f076044425"
       ],
       "intent_ids": [
-        "212fa4c5a7d24eb0"
+        "1abb906e4c13464d"
       ],
       "tags": [],
       "states": {
@@ -379,10 +379,10 @@
     {
       "structural_family": "9ead7d106a4f64e08de82375e1801c55bea737b7a39e2c568194f4d65d04552e",
       "trial_ids": [
-        "f8d4e7f73c1f47ee"
+        "c66a5bccffb34c0b"
       ],
       "intent_ids": [
-        "2837ea2b288b49c3"
+        "15ef10ad29624e58"
       ],
       "tags": [],
       "states": {
@@ -394,10 +394,10 @@
     {
       "structural_family": "ab7118e18575a71e8d7bb147b456981dc6a89d2fc4c7a2ab83901631953ef9a0",
       "trial_ids": [
-        "752d70314a33452f"
+        "0dcd851f61c149a1"
       ],
       "intent_ids": [
-        "4255e24dffa84c82"
+        "1c856a3112ef4b86"
       ],
       "tags": [],
       "states": {
@@ -410,7 +410,7 @@
   "research_notes": [],
   "trials": [
     {
-      "id": "d24b9d369e5e472a",
+      "id": "4823c8aebe594d72",
       "expression": "-rank(ts_delta(close, 5))",
       "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
       "source": "固定规则基线：短期反转，未经实证",
@@ -420,27 +420,27 @@
       "error": null
     },
     {
-      "id": "1913c1edfba64fa6",
+      "id": "52bdd3a938f64262",
       "expression": "-rank(ts_delta(close, 4))",
       "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "d24b9d369e5e472a",
+      "parent_id": "4823c8aebe594d72",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "5a64a6515803485e",
+      "id": "a82ce16ff6e341ee",
       "expression": "-rank(ts_delta(close, 6))",
       "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "d24b9d369e5e472a",
+      "parent_id": "4823c8aebe594d72",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "17a93614085246ba",
+      "id": "cc31abe6a6de47f4",
       "expression": "rank(ts_delta(close, 60) / ts_delay(close, 60))",
       "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
       "source": "固定规则基线：价格动量，未经实证",
@@ -450,27 +450,27 @@
       "error": null
     },
     {
-      "id": "e7d3365d3a6341af",
+      "id": "3f3f56cf91d04925",
       "expression": "rank(ts_delta(close, 48) / ts_delay(close, 60))",
       "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "17a93614085246ba",
+      "parent_id": "cc31abe6a6de47f4",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "4ce720e1fd9448a8",
+      "id": "57abb41a114746b1",
       "expression": "rank(ts_delta(close, 72) / ts_delay(close, 60))",
       "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "17a93614085246ba",
+      "parent_id": "cc31abe6a6de47f4",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "bf58fa4cd4f841a6",
+      "id": "66a136f076044425",
       "expression": "-rank(ts_std_dev(returns, 20))",
       "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
       "source": "固定规则基线：低波动，未经实证",
@@ -480,27 +480,27 @@
       "error": null
     },
     {
-      "id": "77525fdd1099483b",
+      "id": "784d6d632edf4ff6",
       "expression": "-rank(ts_std_dev(returns, 16))",
       "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "bf58fa4cd4f841a6",
+      "parent_id": "66a136f076044425",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "3cc81ad8dfe446b0",
+      "id": "8d3fdab4a8f8486d",
       "expression": "-rank(ts_std_dev(returns, 24))",
       "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "bf58fa4cd4f841a6",
+      "parent_id": "66a136f076044425",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "f8d4e7f73c1f47ee",
+      "id": "c66a5bccffb34c0b",
       "expression": "rank((vwap-close)/close) * rank(volume/ts_mean(volume, 20))",
       "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
       "source": "固定规则基线：价量压力，未经实证",
@@ -510,27 +510,27 @@
       "error": null
     },
     {
-      "id": "158ac4b60fb14a63",
+      "id": "586f825d5cac49af",
       "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 16))",
       "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "f8d4e7f73c1f47ee",
+      "parent_id": "c66a5bccffb34c0b",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "b94e12708783408e",
+      "id": "61168e9759e24fdd",
       "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 24))",
       "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "f8d4e7f73c1f47ee",
+      "parent_id": "c66a5bccffb34c0b",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "752d70314a33452f",
+      "id": "0dcd851f61c149a1",
       "expression": "-rank(ts_corr(close, volume, 20))",
       "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
       "source": "固定规则基线：量价关系，未经实证",
@@ -540,21 +540,21 @@
       "error": null
     },
     {
-      "id": "19f7f1c87fa54d79",
+      "id": "e7d9bb79b7b2432c",
       "expression": "-rank(ts_corr(close, volume, 16))",
       "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "752d70314a33452f",
+      "parent_id": "0dcd851f61c149a1",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
     },
     {
-      "id": "4bc25a8239564960",
+      "id": "5af38edcddb34f79",
       "expression": "-rank(ts_corr(close, volume, 24))",
       "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
       "source": "deterministic_parameter_sensitivity",
-      "parent_id": "752d70314a33452f",
+      "parent_id": "0dcd851f61c149a1",
       "kind": "sensitivity",
       "state": "completed",
       "error": null
@@ -566,24 +566,24 @@
   "research_queue": [],
   "candidates": [
     {
-      "trial_id": "d24b9d369e5e472a",
+      "trial_id": "4823c8aebe594d72",
       "expression": "-rank(ts_delta(close, 5))",
-      "intent_id": "a2c1d18ea2894988",
+      "intent_id": "f6cb54ecb3ee4606",
       "research_intents": [
         {
-          "id": "a2c1d18ea2894988",
-          "run_id": "4b0254ca6fd24a70",
-          "trial_id": "d24b9d369e5e472a",
+          "id": "f6cb54ecb3ee4606",
+          "run_id": "af4d6eb5228b4b6a",
+          "trial_id": "4823c8aebe594d72",
           "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
           "source": "固定规则基线：短期反转，未经实证",
           "parent_intent_id": null,
-          "created": "2026-10-20T19:22:38.139658+00:00",
+          "created": "2026-10-20T19:57:26.048124+00:00",
           "state": "active",
           "reason": null
         }
       ],
       "hypothesis": "短期价格冲击可能反转；反例是强趋势期继续同向。5 日窗口，负号代表卖出近期上涨。",
-      "original_run_id": "4b0254ca6fd24a70",
+      "original_run_id": "af4d6eb5228b4b6a",
       "promoted_from_sensitivity": false,
       "source": "固定规则基线：短期反转，未经实证",
       "parent_id": null,
@@ -611,7 +611,7 @@
           "result": "PASS"
         }
       ],
-      "collected_at": "2026-10-20T19:22:38.144569+00:00",
+      "collected_at": "2026-10-20T19:57:26.050886+00:00",
       "evidence_errors": {},
       "metrics": {
         "fitness": 1.632,
@@ -642,7 +642,7 @@
       ],
       "sensitivity": [
         {
-          "trial_id": "1913c1edfba64fa6",
+          "trial_id": "52bdd3a938f64262",
           "expression": "-rank(ts_delta(close, 4))",
           "state": "completed",
           "alpha_id": "DEMO_4753e3b738",
@@ -654,7 +654,7 @@
           "error": null
         },
         {
-          "trial_id": "5a64a6515803485e",
+          "trial_id": "a82ce16ff6e341ee",
           "expression": "-rank(ts_delta(close, 6))",
           "state": "completed",
           "alpha_id": "DEMO_6d45e5af65",
@@ -689,6 +689,7 @@
             "SELF_CORRELATION": "MISSING"
           },
           "groups": {
+            "PENDING": [],
             "PASS": [
               "CONCENTRATED_WEIGHT",
               "HIGH_TURNOVER",
@@ -697,7 +698,6 @@
               "LOW_TURNOVER"
             ],
             "FAIL": [],
-            "PENDING": [],
             "MISSING": [
               "SELF_CORRELATION"
             ]
@@ -727,24 +727,24 @@
       }
     },
     {
-      "trial_id": "17a93614085246ba",
+      "trial_id": "cc31abe6a6de47f4",
       "expression": "rank(ts_delta(close, 60) / ts_delay(close, 60))",
-      "intent_id": "1035100bc75e4192",
+      "intent_id": "870c525c3be74fb0",
       "research_intents": [
         {
-          "id": "1035100bc75e4192",
-          "run_id": "4b0254ca6fd24a70",
-          "trial_id": "17a93614085246ba",
+          "id": "870c525c3be74fb0",
+          "run_id": "af4d6eb5228b4b6a",
+          "trial_id": "cc31abe6a6de47f4",
           "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
           "source": "固定规则基线：价格动量，未经实证",
           "parent_intent_id": null,
-          "created": "2026-10-20T19:22:38.180376+00:00",
+          "created": "2026-10-20T19:57:26.067786+00:00",
           "state": "active",
           "reason": null
         }
       ],
       "hypothesis": "中期信息扩散可能形成价格动量；反例是急剧反转期。60 日累计价格变化相对于起点归一化。",
-      "original_run_id": "4b0254ca6fd24a70",
+      "original_run_id": "af4d6eb5228b4b6a",
       "promoted_from_sensitivity": false,
       "source": "固定规则基线：价格动量，未经实证",
       "parent_id": null,
@@ -772,7 +772,7 @@
           "result": "PASS"
         }
       ],
-      "collected_at": "2026-10-20T19:22:38.183308+00:00",
+      "collected_at": "2026-10-20T19:57:26.071115+00:00",
       "evidence_errors": {},
       "metrics": {
         "fitness": 1.144,
@@ -803,25 +803,25 @@
       ],
       "sensitivity": [
         {
-          "trial_id": "4ce720e1fd9448a8",
-          "expression": "rank(ts_delta(close, 72) / ts_delay(close, 60))",
-          "state": "completed",
-          "alpha_id": "DEMO_591f53b7cc",
-          "metrics": {
-            "fitness": 1.168,
-            "sharpe": 1.46,
-            "turnover": 0.18
-          },
-          "error": null
-        },
-        {
-          "trial_id": "e7d3365d3a6341af",
+          "trial_id": "3f3f56cf91d04925",
           "expression": "rank(ts_delta(close, 48) / ts_delay(close, 60))",
           "state": "completed",
           "alpha_id": "DEMO_d3d40fff54",
           "metrics": {
             "fitness": 0.688,
             "sharpe": 0.86,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "57abb41a114746b1",
+          "expression": "rank(ts_delta(close, 72) / ts_delay(close, 60))",
+          "state": "completed",
+          "alpha_id": "DEMO_591f53b7cc",
+          "metrics": {
+            "fitness": 1.168,
+            "sharpe": 1.46,
             "turnover": 0.18
           },
           "error": null
@@ -850,6 +850,7 @@
             "SELF_CORRELATION": "MISSING"
           },
           "groups": {
+            "PENDING": [],
             "PASS": [
               "CONCENTRATED_WEIGHT",
               "HIGH_TURNOVER",
@@ -858,7 +859,6 @@
               "LOW_TURNOVER"
             ],
             "FAIL": [],
-            "PENDING": [],
             "MISSING": [
               "SELF_CORRELATION"
             ]
@@ -888,24 +888,24 @@
       }
     },
     {
-      "trial_id": "bf58fa4cd4f841a6",
+      "trial_id": "66a136f076044425",
       "expression": "-rank(ts_std_dev(returns, 20))",
-      "intent_id": "212fa4c5a7d24eb0",
+      "intent_id": "1abb906e4c13464d",
       "research_intents": [
         {
-          "id": "212fa4c5a7d24eb0",
-          "run_id": "4b0254ca6fd24a70",
-          "trial_id": "bf58fa4cd4f841a6",
+          "id": "1abb906e4c13464d",
+          "run_id": "af4d6eb5228b4b6a",
+          "trial_id": "66a136f076044425",
           "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
           "source": "固定规则基线：低波动，未经实证",
           "parent_intent_id": null,
-          "created": "2026-10-20T19:22:38.201546+00:00",
+          "created": "2026-10-20T19:57:26.085421+00:00",
           "state": "active",
           "reason": null
         }
       ],
       "hypothesis": "高波动股票可能被过度追逐；反例是高风险持续获得补偿。20 日波动取负。",
-      "original_run_id": "4b0254ca6fd24a70",
+      "original_run_id": "af4d6eb5228b4b6a",
       "promoted_from_sensitivity": false,
       "source": "固定规则基线：低波动，未经实证",
       "parent_id": null,
@@ -933,7 +933,7 @@
           "result": "PASS"
         }
       ],
-      "collected_at": "2026-10-20T19:22:38.205522+00:00",
+      "collected_at": "2026-10-20T19:57:26.088030+00:00",
       "evidence_errors": {},
       "metrics": {
         "fitness": 1.656,
@@ -964,25 +964,25 @@
       ],
       "sensitivity": [
         {
-          "trial_id": "3cc81ad8dfe446b0",
-          "expression": "-rank(ts_std_dev(returns, 24))",
-          "state": "completed",
-          "alpha_id": "DEMO_b9b98403a3",
-          "metrics": {
-            "fitness": 0.904,
-            "sharpe": 1.13,
-            "turnover": 0.18
-          },
-          "error": null
-        },
-        {
-          "trial_id": "77525fdd1099483b",
+          "trial_id": "784d6d632edf4ff6",
           "expression": "-rank(ts_std_dev(returns, 16))",
           "state": "completed",
           "alpha_id": "DEMO_d2f673a973",
           "metrics": {
             "fitness": 0.84,
             "sharpe": 1.05,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "8d3fdab4a8f8486d",
+          "expression": "-rank(ts_std_dev(returns, 24))",
+          "state": "completed",
+          "alpha_id": "DEMO_b9b98403a3",
+          "metrics": {
+            "fitness": 0.904,
+            "sharpe": 1.13,
             "turnover": 0.18
           },
           "error": null
@@ -1011,6 +1011,7 @@
             "SELF_CORRELATION": "MISSING"
           },
           "groups": {
+            "PENDING": [],
             "PASS": [
               "CONCENTRATED_WEIGHT",
               "HIGH_TURNOVER",
@@ -1019,7 +1020,6 @@
               "LOW_TURNOVER"
             ],
             "FAIL": [],
-            "PENDING": [],
             "MISSING": [
               "SELF_CORRELATION"
             ]
@@ -1049,24 +1049,24 @@
       }
     },
     {
-      "trial_id": "f8d4e7f73c1f47ee",
+      "trial_id": "c66a5bccffb34c0b",
       "expression": "rank((vwap-close)/close) * rank(volume/ts_mean(volume, 20))",
-      "intent_id": "2837ea2b288b49c3",
+      "intent_id": "15ef10ad29624e58",
       "research_intents": [
         {
-          "id": "2837ea2b288b49c3",
-          "run_id": "4b0254ca6fd24a70",
-          "trial_id": "f8d4e7f73c1f47ee",
+          "id": "15ef10ad29624e58",
+          "run_id": "af4d6eb5228b4b6a",
+          "trial_id": "c66a5bccffb34c0b",
           "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
           "source": "固定规则基线：价量压力，未经实证",
           "parent_intent_id": null,
-          "created": "2026-10-20T19:22:38.223278+00:00",
+          "created": "2026-10-20T19:57:26.103806+00:00",
           "state": "active",
           "reason": null
         }
       ],
       "hypothesis": "相对成交均价的折价结合异常交易量可能刻画短期卖压；反例是信息性持续下跌。",
-      "original_run_id": "4b0254ca6fd24a70",
+      "original_run_id": "af4d6eb5228b4b6a",
       "promoted_from_sensitivity": false,
       "source": "固定规则基线：价量压力，未经实证",
       "parent_id": null,
@@ -1094,7 +1094,7 @@
           "result": "PASS"
         }
       ],
-      "collected_at": "2026-10-20T19:22:38.230853+00:00",
+      "collected_at": "2026-10-20T19:57:26.106190+00:00",
       "evidence_errors": {},
       "metrics": {
         "fitness": 0.856,
@@ -1125,7 +1125,7 @@
       ],
       "sensitivity": [
         {
-          "trial_id": "158ac4b60fb14a63",
+          "trial_id": "586f825d5cac49af",
           "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 16))",
           "state": "completed",
           "alpha_id": "DEMO_6333e30b84",
@@ -1137,7 +1137,7 @@
           "error": null
         },
         {
-          "trial_id": "b94e12708783408e",
+          "trial_id": "61168e9759e24fdd",
           "expression": "rank((vwap - close) / close) * rank(volume / ts_mean(volume, 24))",
           "state": "completed",
           "alpha_id": "DEMO_edf3eea3d8",
@@ -1174,6 +1174,7 @@
             "SELF_CORRELATION": "MISSING"
           },
           "groups": {
+            "PENDING": [],
             "PASS": [
               "CONCENTRATED_WEIGHT",
               "HIGH_TURNOVER",
@@ -1182,7 +1183,6 @@
               "LOW_TURNOVER"
             ],
             "FAIL": [],
-            "PENDING": [],
             "MISSING": [
               "SELF_CORRELATION"
             ]
@@ -1212,24 +1212,24 @@
       }
     },
     {
-      "trial_id": "752d70314a33452f",
+      "trial_id": "0dcd851f61c149a1",
       "expression": "-rank(ts_corr(close, volume, 20))",
-      "intent_id": "4255e24dffa84c82",
+      "intent_id": "1c856a3112ef4b86",
       "research_intents": [
         {
-          "id": "4255e24dffa84c82",
-          "run_id": "4b0254ca6fd24a70",
-          "trial_id": "752d70314a33452f",
+          "id": "1c856a3112ef4b86",
+          "run_id": "af4d6eb5228b4b6a",
+          "trial_id": "0dcd851f61c149a1",
           "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
           "source": "固定规则基线：量价关系，未经实证",
           "parent_intent_id": null,
-          "created": "2026-10-20T19:22:38.259029+00:00",
+          "created": "2026-10-20T19:57:26.121263+00:00",
           "state": "active",
           "reason": null
         }
       ],
       "hypothesis": "量价同步走强可能存在拥挤和短期反转；反例是基本面重估。20 日量价相关取负。",
-      "original_run_id": "4b0254ca6fd24a70",
+      "original_run_id": "af4d6eb5228b4b6a",
       "promoted_from_sensitivity": false,
       "source": "固定规则基线：量价关系，未经实证",
       "parent_id": null,
@@ -1257,7 +1257,7 @@
           "result": "PASS"
         }
       ],
-      "collected_at": "2026-10-20T19:22:38.262566+00:00",
+      "collected_at": "2026-10-20T19:57:26.123725+00:00",
       "evidence_errors": {},
       "metrics": {
         "fitness": 0.616,
@@ -1288,25 +1288,25 @@
       ],
       "sensitivity": [
         {
-          "trial_id": "19f7f1c87fa54d79",
-          "expression": "-rank(ts_corr(close, volume, 16))",
-          "state": "completed",
-          "alpha_id": "DEMO_815f39267f",
-          "metrics": {
-            "fitness": 0.936,
-            "sharpe": 1.17,
-            "turnover": 0.18
-          },
-          "error": null
-        },
-        {
-          "trial_id": "4bc25a8239564960",
+          "trial_id": "5af38edcddb34f79",
           "expression": "-rank(ts_corr(close, volume, 24))",
           "state": "completed",
           "alpha_id": "DEMO_2269c4b358",
           "metrics": {
             "fitness": 0.944,
             "sharpe": 1.18,
+            "turnover": 0.18
+          },
+          "error": null
+        },
+        {
+          "trial_id": "e7d9bb79b7b2432c",
+          "expression": "-rank(ts_corr(close, volume, 16))",
+          "state": "completed",
+          "alpha_id": "DEMO_815f39267f",
+          "metrics": {
+            "fitness": 0.936,
+            "sharpe": 1.17,
             "turnover": 0.18
           },
           "error": null
@@ -1336,6 +1336,7 @@
             "SELF_CORRELATION": "MISSING"
           },
           "groups": {
+            "PENDING": [],
             "PASS": [
               "CONCENTRATED_WEIGHT",
               "HIGH_TURNOVER",
@@ -1344,7 +1345,6 @@
               "LOW_TURNOVER"
             ],
             "FAIL": [],
-            "PENDING": [],
             "MISSING": [
               "SELF_CORRELATION"
             ]
@@ -1376,8 +1376,8 @@
   ],
   "audit": {
     "events": 86,
-    "head": "7118c19b6507072316d7f31726b9f451bbbc2deb0c28b91aaf88f9ed7e619904"
+    "head": "c79408382c7ec7251aa3d325984bc77ec262a3fcb21f347dc05bd9ac13ec72f9"
   },
   "notice": "DEMO：全部指标是合成测试数据，禁止提交",
-  "review_hash": "9298c12931970f1af85b91d57c41e8674293b5e0e0fd67fe20a1c5115a8e8f8f"
+  "review_hash": "65d5e452ef0c634867f2e50ed0eb8b22695e089893da216ddcb987116890d4e7"
 }

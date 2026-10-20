@@ -1,3 +1,10 @@
+# V0.4.2 — Resume approval and corrupt history
+
+- Added GET-only resume dry-run and uniform live confirmation, rechecked inside Engine after authentication.
+- Queued tasks and deterministic sensitivity share one per-invocation cap, bounded by the original run/design budget; read-only resume has zero creation permission.
+- Guarded historical result/metrics container types before completion checks. Invalid rows remain unresolved without blocking valid-row migration or releasing locks.
+- 212 offline tests pass: v0.4.1's 192 plus 20 new regressions. No live account operations or remote CI executed.
+
 # V0.4.1 — Strict serialization, parsing and offline preview
 
 - Serialized account/API claims across runs and research contexts, including polling and unresolved paused/failed tasks; added explicit remote lifecycle state and conservative migration.

@@ -60,6 +60,9 @@ class Engine:
             raise ResearchError("存在无 Location 的不确定写请求；请在平台对账后使用 reconcile")
         if trial['state']=='queued' and self.config['mode']=='live' and not self.config.get('safety',{}).get('live_research_enabled',False):
             raise ResearchError('真实研究创建开关关闭；未占用模拟预算')
+        allowed=getattr(self,'_resume_creation_allowlist',None)
+        if trial['state']=='queued' and allowed is not None and trial['fingerprint'] not in allowed:
+            raise ResearchError('恢复队列出现未经本次预览确认的公式；未发送 POST，请重新预览')
         try:
             if trial["state"] == "queued":
                 account_ref=getattr(self.simulator,'account_ref',None)
@@ -281,10 +284,39 @@ class Engine:
         self.memory.transaction(work)
         return {'trial_id':trial_id,'intent_id':target,'state':'abandoned'}
 
-    def resume(self,continue_research=False):
+    def resume(self,continue_research=False,max_new_simulations=None,confirm_preview=None):
+        from .preview import preview_resume,confirm
+        previous_limit=self.simulation_limit
+        previous_allowlist=getattr(self,'_resume_creation_allowlist',None)
+        if not continue_research and (max_new_simulations is not None or confirm_preview is not None):
+            raise ResearchError('新建确认参数仅用于 --continue-research；普通恢复保持只读')
+        if continue_research:
+            estimate=preview_resume(self.config,self.run_id)
+            allowed=confirm(self.config,estimate,max_new_simulations,confirm_preview)
+            self.simulation_limit=min(previous_limit,estimate['simulation_budget'],
+                estimate['simulations_already_reserved']+min(allowed,estimate['new_simulations_upper_bound']))
+            self._resume_creation_allowlist={i['fingerprint'] for i in estimate['items'] if i['action']=='create'}
+            self.memory.transaction(lambda:self.memory.event(self.run_id,'creation_budget_confirmed',
+                {'operation':'resume','preview_sha256':estimate['preview_sha256'],'max_new_simulations':allowed,
+                 'reserved_before':estimate['simulations_already_reserved'],'absolute_limit':self.simulation_limit}))
+        else:
+            self.simulation_limit=min(previous_limit,self.memory.run(self.run_id)['simulations'])
+            self._resume_creation_allowlist=set()
+        try:
+            return self._resume_tasks(continue_research)
+        finally:
+            self.simulation_limit=previous_limit
+            self._resume_creation_allowlist=previous_allowlist
+
+    def _resume_tasks(self,continue_research):
         outcomes = []
         for trial in self.memory.trials(self.run_id):
+            if trial['state']=='queued' and not continue_research:
+                continue
             if trial["state"] in ("paused", "polling", "dispatching", "uncertain") or trial.get('remote_state')=='unresolved' or (continue_research and trial['state']=='queued'):
+                if trial['state']=='queued' and self.memory.run(self.run_id)['simulations']>=self.simulation_limit:
+                    outcomes.append({'trial_id':trial['id'],'state':'queued','reason':'invocation_budget_exhausted'})
+                    continue
                 outcomes.append(self.execute(trial["id"]))
         if not continue_research:
             return outcomes

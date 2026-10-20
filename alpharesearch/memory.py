@@ -12,13 +12,16 @@ from .common import ResearchError, digest, dumps, now
 def remote_result_complete(trial,payload,snap):
     from .brain import finite
     from .reconciliation import expression_matches,settings_match
-    if snap.get('mode')!='live' and not trial.get('account_ref'):return True
-    return (isinstance(payload,dict) and payload.get('mode')=='live' and not payload.get('synthetic')
+    if not all(isinstance(value,dict) for value in (trial,payload,snap)):return False
+    metrics=payload.get('metrics')
+    if not isinstance(metrics,dict) or any(finite(metrics.get(k)) is None for k in ('sharpe','fitness','turnover')):
+        return False
+    if snap.get('mode')=='demo' and not trial.get('account_ref'):return True
+    return (snap.get('mode')=='live' and payload.get('mode')=='live' and not payload.get('synthetic')
         and isinstance(payload.get('alpha_id'),str) and bool(payload['alpha_id'])
         and (not trial.get('alpha_id') or trial['alpha_id']==payload['alpha_id'])
-        and expression_matches(payload.get('expression'),trial['expression'])
-        and settings_match(payload.get('settings'),snap.get('scope'))
-        and all(finite(payload.get('metrics',{}).get(k)) is not None for k in ('sharpe','fitness','turnover')))
+        and expression_matches(payload.get('expression'),trial.get('expression'))
+        and settings_match(payload.get('settings'),snap.get('scope')))
 
 
 class Memory:
@@ -297,13 +300,9 @@ class Memory:
 
     def confirm_remote_completed(self,trial_id,value):
         """A verified detail can end remote occupancy while local evidence waits."""
-        from .reconciliation import expression_matches,settings_match
-        from .brain import finite
         trial=self.trial(trial_id);snap=json.loads(self.run(trial['run_id'])['snapshot'])
-        if (value.get('mode')!='live' or value.get('synthetic') or not trial.get('alpha_id')
-            or value.get('alpha_id')!=trial['alpha_id'] or not expression_matches(value.get('expression'),trial['expression'])
-            or not settings_match(value.get('settings'),snap.get('scope'))
-            or any(finite(value.get('metrics',{}).get(k)) is None for k in ('sharpe','fitness','turnover'))):
+        if (not remote_result_complete(trial,value,snap) or not trial.get('alpha_id')
+            or value.get('mode')!='live' or value.get('alpha_id')!=trial['alpha_id']):
             raise ResearchError('详情不足以确认远程模拟完成；继续占用串行锁')
         def work():
             self.db.execute("UPDATE tasks SET remote_state='completed',state='paused',updated=? WHERE trial_id=?",(now(),trial_id))

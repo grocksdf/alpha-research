@@ -61,7 +61,7 @@ def credentials():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="AlphaResearch V0.4.1 严格串行、只读预览与证据研究")
+    parser = argparse.ArgumentParser(description="AlphaResearch V0.4.2 统一恢复预算与历史证据容错")
     parser.add_argument("--config", default="config/settings.toml")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="离线配置检查；不登录")
@@ -107,6 +107,9 @@ def main(argv=None):
     resume = sub.add_parser("resume", help="恢复 GET 轮询，不重复不确定 POST")
     resume.add_argument("run_id")
     resume.add_argument('--continue-research',action='store_true',help='显式允许处理排队任务和新增参数扰动；默认仅 GET 恢复')
+    resume.add_argument('--dry-run',action='store_true',help='只读预览恢复队列及可能新增的扰动，不登录')
+    resume.add_argument('--max-new-simulations',type=int,help='本次继续研究最多新建数，含失败和不确定响应')
+    resume.add_argument('--confirm-preview',help='确认当前 resume --continue-research 预览哈希')
     report = sub.add_parser("report", help="导出当前 run 的评审包")
     report.add_argument("run_id")
     report.add_argument("--output", default="state/latest-review.json")
@@ -161,6 +164,14 @@ def main(argv=None):
     try:
         config = load_settings(args.config)
         estimate=None;allowed=None
+        if args.command=='resume':
+            if not args.continue_research and (args.max_new_simulations is not None or args.confirm_preview is not None):
+                raise ResearchError('新建确认参数需要 --continue-research；普通恢复只用 GET')
+            if args.dry_run or args.continue_research:
+                from .preview import preview_resume,confirm
+                estimate=preview_resume(config,args.run_id,args.continue_research)
+                if args.dry_run:print_json(estimate);return
+                confirm(config,estimate,args.max_new_simulations,args.confirm_preview)
         if args.command in ('run','directed-run'):
             from .preview import preview,confirm,research_candidates
             if args.command=='directed-run':
@@ -372,7 +383,7 @@ def main(argv=None):
                 review = engine.write_report(args.report)
                 print_json({"report": args.report, "shortlisted": len(review["shortlist"]), "counts": review["counts"]})
             elif args.command == "resume":
-                print_json(engine.resume(args.continue_research))
+                print_json(engine.resume(args.continue_research,args.max_new_simulations,args.confirm_preview))
             elif args.command=='refresh-evidence':
                 print_json(engine.refresh_evidence(args.trial_id));engine.write_report(args.report)
             elif args.command == "report":

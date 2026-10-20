@@ -1,45 +1,33 @@
-AlphaResearch v0.4.1 verification
-Base: delivered v0.4.0 archive; original repository commit 1eba5d8.
-Runtime actually tested this iteration: Linux, Python 3.12.14, standard library.
+AlphaResearch v0.4.2 verification
+Base: delivered v0.4.1 archive; original repository commit 1eba5d8.
+Runtime actually tested: Linux, Python 3.12.14, standard library only.
 
-Both review counterexamples reproduced against the unchanged v0.4.0 source:
-- a polling task did not block a cross-run claim;
-- duplicate schema pnl columns silently overwrote 1.0 with 999.0.
+Original v0.4.1 remote_result_complete(metrics=null) reproduced AttributeError.
+The prior resume --continue-research did not request preview confirmation.
 
-Current suite: 192/192 tests pass (160 retained, 32 added).
+Current suite: 212/212 tests pass (192 retained, 20 added).
 New regressions cover:
-- polling, unresolved paused/failed tasks and account/API cross-run exclusion;
-- simultaneous claims through separate SQLite connections grant one slot;
-- known completed Alpha detail vs a bare ID or incomplete core metrics;
-- rejected creation releases capacity without refunding reserved budget;
-- omitted/wrong account/API identity cannot bypass live claim checks;
-- old schema migration preserves snapshots, results and spent budget;
-- duplicate/blank/malformed schema, empty/object records and column mismatch;
-- no-network/no-model/no-run-creation dry-run, including live-mode preview;
-- fixed candidate estimates, unknown LLM upper bounds and cached result reuse;
-- explicit offline migration, stale preview rejection and per-invocation caps;
-- common credential-pattern detection without echoing secret values;
-- source/ZIP hashes, extra-member rejection and reproducible archives;
-- configured research-rule dependencies must be included in the release.
+- CLI confirmation rejection before credentials and Engine-level enforcement;
+- resume dry-run performs no HTTP/model calls, run creation or DB migration;
+- queue and sensitivity share the per-invocation budget, including prior spend;
+- zero cap, stale task state, authentication-time changes and cached parents;
+- uncertain creation consumes budget once and blocks subsequent creation;
+- frozen directed designs do not expand through resume;
+- ordinary resume remains GET-only, including corrupt queued/unresolved tags;
+- rejected expressions do not abort the remaining queue preview;
+- null/list/scalar/missing metrics and invalid outer JSON types fail closed;
+- completion confirmation cannot release locks with malformed metrics;
+- mixed corrupt/valid historical rows migrate without rewriting snapshots,
+  results, spent budget or prior audit history; repeated migration is stable.
 
-Local release checks:
-- doctor: demo, no BRAIN/model credentials, live/submission switches closed;
-- source manifest and credential-pattern scan passed;
-- clean ZIP extraction, startup, baseline/directed previews and runs checked;
-- baseline 15 synthetic simulations, default resume adds 0;
-- fixed design 6 synthetic simulations, rerun adds 0;
-- incremental patch applies to the supplied v0.4.0 source and reproduces the
-  current release file hashes; runtime DBs/live configs are excluded.
+Release validation:
+- source manifest, credential-pattern scan and archive integrity checked;
+- clean extraction and CLI baseline/directed/resume preview flows checked;
+- incremental patch applies to v0.4.1 and reconstructs all current source hashes;
+- runtime databases, live configs, credentials and account captures excluded.
 
-CI configuration added for Ubuntu/Windows and Python 3.11/3.12/3.13.
-Official action commits resolved from their public upstream repositories and
-pinned in the workflow. No remote CI job or Windows run executed this session.
-
-NOT performed: BRAIN authentication, real account Alpha/Check/PnL GETs, real
-Simulation POST, real PnL/calendar/IS contract review, model inference, licensed
-market-data validation, submission, GitHub push or account connection.
-The database serial guard covers one shared research queue, not independent
-external programs, separate databases, manual website use or account quotas.
-The credential scanner is a limited pattern check, not a complete security audit.
-Synthetic scores have no financial meaning; local validation remains distinct
-from BRAIN and retains the 300-asset/100000-row prototype limit.
+Not executed: BRAIN login or real Alpha/Check/PnL requests, real simulations,
+model inference, licensed market validation, submission, remote CI or GitHub push.
+All responses and return observations are synthetic protocol fixtures. PnL units,
+cumulative/daily conventions, authoritative calendars and exact live IS bounds
+remain unverified. Software correctness does not establish alpha effectiveness.
