@@ -72,9 +72,12 @@ def load_plan(path,config):
     return value
 
 
-def execute_plan(config,plan_path,output,simulator=None):
+def execute_plan(config,plan_path,output,simulator=None,max_new_simulations=None,confirm_preview=None):
     """Stable study ID binds one run and its spent budget across restarts."""
     plan=load_plan(plan_path,config)
+    from .preview import preview,confirm
+    estimate=preview(config,plan['candidates'],plan=plan)
+    allowed=confirm(config,estimate,max_new_simulations,confirm_preview)
     memory=Memory(config['database'])
     try:
         def bind():
@@ -90,9 +93,11 @@ def execute_plan(config,plan_path,output,simulator=None):
             return run_id
         run_id=memory.transaction(bind)
     finally:memory.close()
-    engine=Engine(config,run_id,simulator)
+    engine=Engine(config,run_id,simulator,simulation_limit=min(plan['max_simulations'],estimate['simulations_already_reserved']+allowed))
     try:
         engine.memory.transaction(lambda:engine.memory.event(run_id,'research_arm',{'agent':'fixed_directed','plan_sha256':plan['plan_sha256']}))
+        engine.memory.transaction(lambda:engine.memory.event(run_id,'creation_budget_confirmed',
+            {'preview_sha256':estimate['preview_sha256'],'max_new_simulations':allowed,'reserved_before':estimate['simulations_already_reserved']}))
         for c in plan['candidates']:
             # Add once; do not use propose(), which creates automatic neighbors.
             events=[json.loads(r[0]) for r in engine.memory.db.execute(
@@ -110,11 +115,13 @@ def execute_plan(config,plan_path,output,simulator=None):
             trial=engine.memory.trial(trial_id)
             if trial['run_id']!=run_id and trial['state']!='completed':
                 raise ResearchError('共享公式尚未完成；先只读恢复原 run，不重复创建')
-            if trial['state']=='queued' and engine.memory.run(run_id)['simulations']>=plan['max_simulations']:
-                raise ResearchError('定向研究 6 次预算耗尽；不扩展候选')
+            if trial['state']=='queued' and engine.memory.run(run_id)['simulations']>=engine.simulation_limit:
+                break
             engine.execute(trial_id)
         report=engine.write_report(output)
         return {'run_id':run_id,'study_id':plan['study_id'],'counts':report['counts'],
             'plan_sha256':plan['plan_sha256'],'automatic_sensitivity':False,
+            'invocation_max_new_simulations':allowed,'preview_sha256':estimate['preview_sha256'],
+            'plan_completed':all(any(t['expression']==c['expression'] and t['state']=='completed' for t in report['trials']) for c in plan['candidates']),
             'independent_validation_completed':False,'report':str(output)}
     finally:engine.memory.close()

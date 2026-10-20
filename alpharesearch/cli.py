@@ -61,10 +61,11 @@ def credentials():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="AlphaResearch V0.4.0 恢复、证据与受预算约束研究")
+    parser = argparse.ArgumentParser(description="AlphaResearch V0.4.1 严格串行、只读预览与证据研究")
     parser.add_argument("--config", default="config/settings.toml")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="离线配置检查；不登录")
+    sub.add_parser('migrate-state',help='离线迁移已有任务状态，保留快照、历史与预算，不访问网络')
     probe = sub.add_parser("probe-api", help="账户接口能力探测；默认只读取元数据")
     probe.add_argument("--one-simulation", action="store_true", help="明确创建一次真实单 Alpha 模拟")
     probe.add_argument("--expression", help="单模拟探测所用 Fast Expression")
@@ -88,6 +89,9 @@ def main(argv=None):
     directed_run=sub.add_parser('directed-run',help='执行/恢复已冻结六公式设计；稳定 study_id 不重置预算')
     directed_run.add_argument('--plan',required=True)
     directed_run.add_argument('--report',default='state/directed-review.json')
+    directed_run.add_argument('--dry-run',action='store_true',help='离线只读预览去重、新建上限和预算，不登录')
+    directed_run.add_argument('--max-new-simulations',type=int,help='本次最多新建数，含失败和未知响应')
+    directed_run.add_argument('--confirm-preview',help='明确确认 --dry-run 输出的 preview_sha256')
     reconcile_probe=sub.add_parser('reconcile-probe',help='人工确认服务端已创建后绑定模拟 Location；不重发 POST')
     reconcile_probe.add_argument('record');reconcile_probe.add_argument('--location',required=True)
     sync = sub.add_parser("sync-catalog", help="登录并同步当前账户目录，不运行模拟")
@@ -97,6 +101,9 @@ def main(argv=None):
     run.add_argument("--candidates", help="JSON batch for --agent file; every candidate is validated")
     run.add_argument("--papers", help="显式提供的 UTF-8 本地论文摘要/研究文本")
     run.add_argument("--report", default="state/latest-review.json")
+    run.add_argument('--dry-run',action='store_true',help='离线预览；LLM 只显示预算上界，不调用模型')
+    run.add_argument('--max-new-simulations',type=int)
+    run.add_argument('--confirm-preview')
     resume = sub.add_parser("resume", help="恢复 GET 轮询，不重复不确定 POST")
     resume.add_argument("run_id")
     resume.add_argument('--continue-research',action='store_true',help='显式允许处理排队任务和新增参数扰动；默认仅 GET 恢复')
@@ -153,6 +160,17 @@ def main(argv=None):
     engine = None
     try:
         config = load_settings(args.config)
+        estimate=None;allowed=None
+        if args.command in ('run','directed-run'):
+            from .preview import preview,confirm,research_candidates
+            if args.command=='directed-run':
+                from .directed import load_plan
+                plan=load_plan(args.plan,config)
+                estimate=preview(config,plan['candidates'],plan=plan)
+            else:
+                estimate=preview(config,research_candidates(config,args.agent,args.candidates),papers_path=args.papers)
+            if args.dry_run:print_json(estimate);return
+            allowed=confirm(config,estimate,args.max_new_simulations,args.confirm_preview)
         if args.command=='directed-plan':
             from .directed import create_plan
             value=create_plan(config,args.study_id,args.output,args.candidates_output)
@@ -210,6 +228,14 @@ def main(argv=None):
                 'paper_search_enabled':config.get('research',{}).get('paper_search_enabled',False)})
             return
         with worker_lock(config["database"]):
+            if args.command=='migrate-state':
+                if not Path(config['database']).is_file():raise ResearchError('没有已有数据库，无需迁移')
+                memory=Memory(config['database'])
+                try:
+                    rows=memory.db.execute('SELECT remote_state,COUNT(*) FROM tasks GROUP BY remote_state').fetchall()
+                    print_json({'network_requests':0,'remote_states':{r[0]:r[1] for r in rows},'audit':memory.verify()})
+                finally:memory.close()
+                return
             if args.command=='audit-alphas':
                 from .evidence_audit import audit_existing_alphas
                 from .trace import ShapeRecorder
@@ -292,7 +318,7 @@ def main(argv=None):
                     require_smoke_receipt(config,identity['user_id'])
             if args.command=='directed-run':
                 from .directed import execute_plan
-                print_json(execute_plan(config,args.plan,args.report,simulator));return
+                print_json(execute_plan(config,args.plan,args.report,simulator,args.max_new_simulations,args.confirm_preview));return
             if args.command=='recover-trial':
                 if config['mode']!='live':raise ResearchError('仅用于真实任务的 GET 对账')
                 from .reconciliation import recover_saved_trial
@@ -310,11 +336,17 @@ def main(argv=None):
                 finally:
                     memory.close()
                 return
-            engine = Engine(config, getattr(args, "run_id", None), simulator)
+            engine = Engine(config, getattr(args, "run_id", None), simulator,simulation_limit=allowed)
             print_json({"run_id": engine.run_id, "mode": config["mode"]})
             if args.command == "run":
                 if config['mode']=='live' and not config.get('safety',{}).get('live_research_enabled'):raise ResearchError('先完成单 Alpha 冒烟验收，live_research_enabled 默认关闭')
                 engine.memory.transaction(lambda:engine.memory.event(engine.run_id,'research_arm',{'agent':args.agent,'papers_path':args.papers}))
+                # Recheck after authentication, before the first remote create.
+                current=preview(config,research_candidates(config,args.agent,args.candidates),papers_path=args.papers)
+                allowed=confirm(config,current,args.max_new_simulations,args.confirm_preview)
+                engine.simulation_limit=allowed
+                engine.memory.transaction(lambda:engine.memory.event(engine.run_id,'creation_budget_confirmed',
+                    {'preview_sha256':current['preview_sha256'],'max_new_simulations':allowed}))
                 if args.agent == "llm":
                     from .agent import ResearchAgent
                     papers = Path(args.papers).read_text(encoding="utf-8") if args.papers else "No papers supplied; explain priors and do not invent citations."
@@ -331,9 +363,11 @@ def main(argv=None):
                         baselines = json.loads((Path(config["root"])/"examples/baseline.json").read_text(encoding="utf-8"))
                     for candidate in baselines:
                         run_counters = engine.memory.run(engine.run_id)
-                        if run_counters["simulations"] >= config["rules"]["max_simulations_per_run"] or \
-                                run_counters["proposals"] >= config["rules"]["max_proposals_per_run"]:
+                        if run_counters["proposals"] >= config["rules"]["max_proposals_per_run"]:
                             break
+                        if run_counters['simulations']>=engine.simulation_limit and not engine.memory.existing_trial(
+                                engine.context,engine.validator.validate(candidate['expression']).fingerprint):
+                            continue
                         print_json(engine.propose(**candidate))
                 review = engine.write_report(args.report)
                 print_json({"report": args.report, "shortlisted": len(review["shortlist"]), "counts": review["counts"]})

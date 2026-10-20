@@ -1,11 +1,31 @@
-# AlphaResearch V0.4.0
+# AlphaResearch V0.4.1
 
 一个 Research Agent，四个确定性组件。基于仓库 v0.3.5 迭代，Python 3.11+，运行与测试均只依赖标准库。
 
-**本版实现恢复、防重复创建、只读证据审计和定向研究协议。160 项离线测试通过。**
+**本版加强账户级串行锁、Recordset 严格解析、离线预览和发布校验，192 项离线测试通过。**
 本次环境没有 BRAIN 凭据和四个已有 Alpha 的 ID，未登录、未读取真实证据、未创建模拟、未提交。
 仓库早期文档记载过账户探测；这些历史记述不等于本次验收，也不证明 PnL 语义或 Alpha 有效。
 随附 Demo 仍是合成数据；真实 AI 优势、独立市场验证、积分和资格均未证明。
+
+## v0.4.1：严格串行与真实实验预览
+
+- `Memory.claim()` 在同一 SQLite 事务中检查同账户/API 的所有 run 和研究范围。`dispatching/uncertain/polling`、未确认结束的 `paused/failed` 均阻止新建。
+- 新增 `remote_state`，区分远程仍未结束与仅在本地等待补证。仅绑定 Alpha ID 不释放锁；经详情对账确认完成后才可释放。旧库迁移保留快照、历史结果和预算，未知状态保守锁定。
+- Recordset 的 schema 名称必须非空、无首尾空白、唯一；对象记录和空记录也不能绕过 schema 校验。
+- `run --dry-run` 和 `directed-run --dry-run` 不登录、不调用模型、不创建 run、不迁移数据库。固定候选显示去重后的预计新建次数，LLM 显示预算上界。
+- 真实新建使用 `--confirm-preview SHA --max-new-simulations N`；状态/参数/预算改变使旧预览失效，本次上限在创建事务中执行。
+- 新增 CI 配置与标准库发布脚本，检查测试、清单、ZIP 和常见凭据模式。CI 工作流未在本次远程执行。
+
+```bash
+python -m alpharesearch migrate-state
+python -m alpharesearch directed-run --plan state/directed-plan.json --dry-run
+# 用刚才的 preview_sha256 和本次允许的次数替换以下值：
+python -m alpharesearch directed-run --plan state/directed-plan.json --confirm-preview PREVIEW_SHA256 --max-new-simulations 6
+```
+
+`migrate-state` 只针对已有数据库；新项目无需运行。v0.4.0 的计划因源码哈希变化会被拒绝，
+不要改哈希复用旧计划。先恢复未完成任务、保存旧研究记录，再为新实验生成新计划。
+完整语义、预算与迁移说明见 [v0.4.1 操作说明](docs/v0.4.1-serial-preview.md)。
 
 ## V0.4.0：先恢复与补证据，再执行有限实验
 

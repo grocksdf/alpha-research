@@ -26,12 +26,20 @@ def records(payload):
     rows = payload.get("records")
     if not isinstance(rows, list):
         raise ApiError("recordset 缺少 records 数组")
+    names=None
+    if 'schema' in payload:
+        schema=payload['schema']
+        props=schema.get('properties') if isinstance(schema,dict) else None
+        if not isinstance(props,list) or not props or not all(isinstance(x,dict) and isinstance(x.get('name'),str)
+                and x['name'].strip() and x['name']==x['name'].strip() for x in props):
+            raise ApiError('recordset schema 字段名必须为非空字符串')
+        names=[p['name'] for p in props]
+        if len(names)!=len(set(names)):raise ApiError('recordset schema 字段名重复，拒绝覆盖数值')
     if all(isinstance(r, dict) for r in rows):
+        if any(not isinstance(k,str) or not k.strip() or k!=k.strip() for r in rows for k in r):raise ApiError('recordset 对象字段名无效')
+        if names is not None and any(set(r)!=set(names) for r in rows):raise ApiError('recordset 对象记录与 schema 不匹配')
         return rows
-    props = payload.get("schema", {}).get("properties", [])
-    if not isinstance(props, list) or not all(isinstance(x, dict) and isinstance(x.get("name"), str) for x in props):
-        raise ApiError("未知 recordset schema")
-    names = [p["name"] for p in props]
+    if names is None:raise ApiError('数组 recordset 必须提供明确 schema')
     if any(not isinstance(r, list) or len(r) != len(names) for r in rows):
         raise ApiError("recordset 列数不匹配")
     return [dict(zip(names, r)) for r in rows]

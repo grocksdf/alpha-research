@@ -153,7 +153,8 @@ def recover_saved_trial(config,run_id,trial_id,simulator,alpha_id=None):
     identity_confirmed=False
     try:
         trial=memory.trial(trial_id);run=memory.run(run_id)
-        if trial['run_id']!=run_id or trial['state'] not in ('dispatching','uncertain','polling','paused'):
+        if trial['run_id']!=run_id or (trial['state'] not in ('dispatching','uncertain','polling','paused')
+                and trial.get('remote_state')!='unresolved'):
             raise ApiError('只能只读恢复指定 run 的未完成任务')
         original=json.loads(run['snapshot'])
         catalog=original.get('catalog',{})
@@ -178,8 +179,9 @@ def recover_saved_trial(config,run_id,trial_id,simulator,alpha_id=None):
                 'current_code_snapshot_hash':digest(snapshot(config)),
                 'identity_source':'original_snapshot_and_simulation_reservation'})
         memory.transaction(bind_dispatch)
-        if trial.get('alpha_id') and not alpha_id:
-            value=simulator.collect(trial['alpha_id'],minimal=True)
+        known=trial.get('alpha_id') or (memory.latest(trial_id) or {}).get('alpha_id')
+        if known and not alpha_id:
+            value=simulator.collect(known,minimal=True)
         elif trial.get('location') and not alpha_id:
             try:
                 value=simulator.finish_probe(trial['location'],on_alpha=lambda aid:memory.bind_alpha(trial_id,aid))
@@ -192,6 +194,7 @@ def recover_saved_trial(config,run_id,trial_id,simulator,alpha_id=None):
         if not expression_matches(value.get('expression'),record['expression']) or not settings_match(value.get('settings'),record['scope']):
             raise ApiError('恢复 Alpha 公式/关键设置冲突；没有改写旧结果')
         memory.bind_alpha(trial_id,value['alpha_id'],value.get('recovery'))
+        memory.confirm_remote_completed(trial_id,value)
         result=simulator.collect(value['alpha_id'])
         if not expression_matches(result.get('expression'),record['expression']) or not settings_match(result.get('settings'),record['scope']):
             raise ApiError('证据刷新时 Alpha 身份发生冲突')

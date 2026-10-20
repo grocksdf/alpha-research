@@ -1,46 +1,45 @@
-AlphaResearch v0.4.0 verification
-Base repository: https://github.com/grocksdf/alpha-research.git
-Base commit: 1eba5d8
-Runtime: Linux, Python 3.12.14, standard library only.
+AlphaResearch v0.4.1 verification
+Base: delivered v0.4.0 archive; original repository commit 1eba5d8.
+Runtime actually tested this iteration: Linux, Python 3.12.14, standard library.
 
-Original repository suite: 129 tests passed before implementation.
-Current suite: 160 tests passed (31 additional regressions).
+Both review counterexamples reproduced against the unchanged v0.4.0 source:
+- a polling task did not block a cross-run claim;
+- duplicate schema pnl columns silently overwrote 1.0 with 999.0.
 
-Synthetic protocol coverage:
-- dead Location -> owner Alpha list + full detail reconciliation;
-- ambiguous create without Location -> GET-only recovery, one POST total;
-- zero/multiple/incomplete matches never trigger another POST;
-- explicit ID still requires account-list membership and detail agreement;
-- agreed key settings, extra dates, Boolean/numeric distinction and conflicts;
-- ID persistence before evidence collection and unknown-write budget reservation;
-- default resume creates no queued or sensitivity simulations;
-- cross-version GET recovery preserves original snapshot and simulation spend;
-- four existing fixture Alphas audited without simulation or submission;
-- unknown PnL semantics, calendar and IS boundaries produce no stability scores;
-- missing/mismatched unit proofs cannot validate cached daily evidence;
-- PASS/FAIL/PENDING/MISSING and explicit SELF_CORRELATION PASS;
-- frozen six-formula plan, single-parameter logs, stable run and budget;
-- one-shot independent comparison reports six formulas and four pairs,
-  blocks repeated reveal and does not choose a post-validation winner.
+Current suite: 192/192 tests pass (160 retained, 32 added).
+New regressions cover:
+- polling, unresolved paused/failed tasks and account/API cross-run exclusion;
+- simultaneous claims through separate SQLite connections grant one slot;
+- known completed Alpha detail vs a bare ID or incomplete core metrics;
+- rejected creation releases capacity without refunding reserved budget;
+- omitted/wrong account/API identity cannot bypass live claim checks;
+- old schema migration preserves snapshots, results and spent budget;
+- duplicate/blank/malformed schema, empty/object records and column mismatch;
+- no-network/no-model/no-run-creation dry-run, including live-mode preview;
+- fixed candidate estimates, unknown LLM upper bounds and cached result reuse;
+- explicit offline migration, stale preview rejection and per-invocation caps;
+- common credential-pattern detection without echoing secret values;
+- source/ZIP hashes, extra-member rejection and reproducible archives;
+- configured research-rule dependencies must be included in the release.
 
-Release integration:
-- source manifest/ZIP integrity and extracted startup checked;
+Local release checks:
 - doctor: demo, no BRAIN/model credentials, live/submission switches closed;
-- baseline: 5 hypotheses, 15 synthetic simulations, LLM calls 0;
-- default resume adds no simulations;
-- directed run: six formulas, six simulations maximum, no implicit neighbors;
-- synthetic independent comparison and saved final-report recovery checked.
+- source manifest and credential-pattern scan passed;
+- clean ZIP extraction, startup, baseline/directed previews and runs checked;
+- baseline 15 synthetic simulations, default resume adds 0;
+- fixed design 6 synthetic simulations, rerun adds 0;
+- incremental patch applies to the supplied v0.4.0 source and reproduces the
+  current release file hashes; runtime DBs/live configs are excluded.
 
-NOT performed this session:
-- BRAIN login or real-account list/schema/evidence acceptance;
-- real Simulation POST, real Check completion or Alpha submission;
-- PnL units/cumulative/daily/reset/bookkeeping certification;
-- authoritative calendar or exact live IS boundary certification;
-- independent licensed market validation or AI/baseline comparison;
-- GitHub remote push or account connection.
+CI configuration added for Ubuntu/Windows and Python 3.11/3.12/3.13.
+Official action commits resolved from their public upstream repositories and
+pinned in the workflow. No remote CI job or Windows run executed this session.
 
-Upstream v0.3.5 described prior live operations; those are historical reports,
-not acceptance evidence for this implementation. No credentials, runtime DBs,
-raw account captures or invented live responses ship. Synthetic scores have no
-financial meaning. Local validation is not BRAIN-equivalent and retains the
-300-asset/100000-row prototype limit.
+NOT performed: BRAIN authentication, real account Alpha/Check/PnL GETs, real
+Simulation POST, real PnL/calendar/IS contract review, model inference, licensed
+market-data validation, submission, GitHub push or account connection.
+The database serial guard covers one shared research queue, not independent
+external programs, separate databases, manual website use or account quotas.
+The credential scanner is a limited pattern check, not a complete security audit.
+Synthetic scores have no financial meaning; local validation remains distinct
+from BRAIN and retains the 300-asset/100000-row prototype limit.

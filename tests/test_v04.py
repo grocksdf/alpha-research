@@ -204,7 +204,7 @@ class RecoveryTests(Base):
             proposal={'expression':'rank(close)','hypothesis':'TEST legacy','source':'fixture'}
             valid=Validator(self.config['catalog_data'],self.config['scope'],self.config['rules']).validate(proposal['expression'])
             tid,_=memory.add_trial(run_id,proposal,valid,'TEST legacy context')
-            memory.claim(tid,1)
+            memory.claim(tid,1,sim.account_ref,sim.paths['base_url'])
             memory.db.execute('UPDATE tasks SET account_ref=NULL,api_base_url=NULL,dispatched_at=NULL WHERE trial_id=?',(tid,))
             memory.set_state(tid,'paused',location='/simulations/dead')
             before=memory.run(run_id)

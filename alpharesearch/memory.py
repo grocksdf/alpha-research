@@ -9,6 +9,18 @@ from pathlib import Path
 from .common import ResearchError, digest, dumps, now
 
 
+def remote_result_complete(trial,payload,snap):
+    from .brain import finite
+    from .reconciliation import expression_matches,settings_match
+    if snap.get('mode')!='live' and not trial.get('account_ref'):return True
+    return (isinstance(payload,dict) and payload.get('mode')=='live' and not payload.get('synthetic')
+        and isinstance(payload.get('alpha_id'),str) and bool(payload['alpha_id'])
+        and (not trial.get('alpha_id') or trial['alpha_id']==payload['alpha_id'])
+        and expression_matches(payload.get('expression'),trial['expression'])
+        and settings_match(payload.get('settings'),snap.get('scope'))
+        and all(finite(payload.get('metrics',{}).get(k)) is not None for k in ('sharpe','fitness','turnover')))
+
+
 class Memory:
     def __init__(self, path):
         path = Path(path)
@@ -70,14 +82,34 @@ class Memory:
           study_id TEXT PRIMARY KEY,run_id TEXT UNIQUE NOT NULL REFERENCES runs(id),
           plan_hash TEXT NOT NULL,created TEXT NOT NULL);
         """)
-        columns={row[1] for row in self.db.execute('PRAGMA table_info(tasks)')}
-        for name in ('account_ref','api_base_url','dispatched_at','alpha_id'):
-            if name not in columns:
-                self.db.execute('ALTER TABLE tasks ADD COLUMN '+name+' TEXT')
+        self.migrate_tasks()
         for table in ("trials", "results", "events", "candidate_promotions", "research_intents", "sensitivity_refs", "research_notes", "costs",'directed_studies'):
             for op in ("UPDATE", "DELETE"):
                 self.db.execute(f"CREATE TRIGGER IF NOT EXISTS immutable_{table}_{op} BEFORE {op} ON {table} BEGIN SELECT RAISE(ABORT, 'immutable research record'); END")
         self.migrate_intents()
+
+    def migrate_tasks(self):
+        def work():
+            columns={row[1] for row in self.db.execute('PRAGMA table_info(tasks)')}
+            for name in ('account_ref','api_base_url','dispatched_at','alpha_id','remote_state'):
+                if name not in columns:self.db.execute('ALTER TABLE tasks ADD COLUMN '+name+' TEXT')
+            if 'remote_state' not in columns:
+                # Preserve historical snapshots/events/budgets. No Alpha binding
+                # or local paused/failed marker proves a remote task has ended.
+                self.db.execute('''UPDATE tasks SET remote_state=CASE
+                    WHEN state='queued' AND location IS NULL AND alpha_id IS NULL THEN 'not_started'
+                    WHEN state='rejected' THEN 'not_created'
+                    WHEN state='completed' AND EXISTS(SELECT 1 FROM results r WHERE r.trial_id=tasks.trial_id) THEN 'completed'
+                    ELSE 'unresolved' END''')
+                rows=self.db.execute('''SELECT t.expression,q.trial_id,q.alpha_id,q.account_ref,r.snapshot,
+                    (SELECT payload FROM results x WHERE x.trial_id=t.id ORDER BY id DESC LIMIT 1) AS payload
+                    FROM tasks q JOIN trials t ON q.trial_id=t.id JOIN runs r ON t.run_id=r.id
+                    WHERE q.state='completed' ''').fetchall()
+                for row in rows:
+                    try:complete=remote_result_complete(dict(row),json.loads(row['payload']),json.loads(row['snapshot']))
+                    except (TypeError,ValueError):complete=False
+                    if not complete:self.db.execute("UPDATE tasks SET remote_state='unresolved' WHERE trial_id=?",(row['trial_id'],))
+        self.transaction(work)
 
     def migrate_intents(self):
         # Old tables remain intact. Recover known provenance; do not invent missing old hypotheses.
@@ -211,13 +243,14 @@ class Memory:
                 trial_id, run_id, proposal["expression"], proposal["hypothesis"], proposal["source"], parent_id, kind,
                 validated.fingerprint if validated else None, validated.family if validated else None, context, now()))
             state = "queued" if validated else "rejected"
-            self.db.execute("INSERT INTO tasks(trial_id,state,location,error,updated) VALUES(?,?,?,?,?)", (trial_id, state, None, None, now()))
+            self.db.execute("INSERT INTO tasks(trial_id,state,location,error,updated,remote_state) VALUES(?,?,?,?,?,?)",
+                (trial_id,state,None,None,now(),'not_started' if validated else 'not_created'))
             self.event(run_id, "trial_created", {"trial_id": trial_id, **proposal, "parent_id": parent_id, "kind": kind, "state": state})
             return trial_id, True
         return self.transaction(work)
 
     def trial(self, trial_id):
-        row = self.db.execute("SELECT t.*,q.state,q.location,q.error,q.account_ref,q.api_base_url,q.dispatched_at,q.alpha_id FROM trials t JOIN tasks q ON q.trial_id=t.id WHERE t.id=?", (trial_id,)).fetchone()
+        row = self.db.execute("SELECT t.*,q.state,q.location,q.error,q.account_ref,q.api_base_url,q.dispatched_at,q.alpha_id,q.remote_state FROM trials t JOIN tasks q ON q.trial_id=t.id WHERE t.id=?", (trial_id,)).fetchone()
         if not row:
             raise ResearchError("trial_id 不存在")
         return dict(row)
@@ -229,7 +262,7 @@ class Memory:
         return dict(row) if row else None
 
     def trials(self, run_id):
-        return [dict(r) for r in self.db.execute("SELECT t.*,q.state,q.location,q.error,q.account_ref,q.api_base_url,q.dispatched_at,q.alpha_id FROM trials t JOIN tasks q ON t.id=q.trial_id WHERE run_id=? ORDER BY t.created", (run_id,))]
+        return [dict(r) for r in self.db.execute("SELECT t.*,q.state,q.location,q.error,q.account_ref,q.api_base_url,q.dispatched_at,q.alpha_id,q.remote_state FROM trials t JOIN tasks q ON t.id=q.trial_id WHERE run_id=? ORDER BY t.created", (run_id,))]
 
     def latest(self, trial_id):
         row = self.db.execute("SELECT payload FROM results WHERE trial_id=? ORDER BY id DESC LIMIT 1", (trial_id,)).fetchone()
@@ -237,18 +270,44 @@ class Memory:
 
     def result(self, trial_id, payload):
         trial = self.trial(trial_id)
+        snap=json.loads(self.run(trial['run_id'])['snapshot'])
+        resolved=remote_result_complete(trial,payload,snap)
         def work():
             self.db.execute("INSERT INTO results(trial_id,created,payload) VALUES(?,?,?)", (trial_id, now(), dumps(payload)))
             self.db.execute("UPDATE tasks SET state='completed',error=NULL,updated=? WHERE trial_id=?", (now(), trial_id))
+            self.db.execute('UPDATE tasks SET remote_state=? WHERE trial_id=?',('completed' if resolved else 'unresolved',trial_id))
             self.event(trial["run_id"], "result_recorded", {"trial_id": trial_id, "result_hash": digest(payload)})
         self.transaction(work)
 
-    def set_state(self, trial_id, state, location=None, error=None):
+    def set_state(self, trial_id, state, location=None, error=None, remote_state=None):
         trial = self.trial(trial_id)
+        if remote_state is not None and remote_state!='not_created':raise ResearchError('远程完成必须通过详情对账确认')
+        if remote_state=='not_created' and state!='failed':raise ResearchError('仅明确拒绝创建可标记 not_created')
         def work():
             self.db.execute("UPDATE tasks SET state=?,location=COALESCE(?,location),error=?,updated=? WHERE trial_id=?",
                             (state, location, error, now(), trial_id))
-            self.event(trial["run_id"], "task_state", {"trial_id": trial_id, "state": state, "error": error})
+            if state in ('dispatching','uncertain','polling'):
+                self.db.execute("UPDATE tasks SET remote_state='unresolved' WHERE trial_id=?",(trial_id,))
+            elif state=='paused':
+                self.db.execute("UPDATE tasks SET remote_state='unresolved' WHERE trial_id=? AND (remote_state IS NULL OR remote_state='not_started')",(trial_id,))
+            if remote_state:
+                self.db.execute('UPDATE tasks SET remote_state=? WHERE trial_id=?',(remote_state,trial_id))
+            self.event(trial["run_id"], "task_state", {"trial_id": trial_id, "state": state, "error": error,'remote_state':remote_state})
+        self.transaction(work)
+
+    def confirm_remote_completed(self,trial_id,value):
+        """A verified detail can end remote occupancy while local evidence waits."""
+        from .reconciliation import expression_matches,settings_match
+        from .brain import finite
+        trial=self.trial(trial_id);snap=json.loads(self.run(trial['run_id'])['snapshot'])
+        if (value.get('mode')!='live' or value.get('synthetic') or not trial.get('alpha_id')
+            or value.get('alpha_id')!=trial['alpha_id'] or not expression_matches(value.get('expression'),trial['expression'])
+            or not settings_match(value.get('settings'),snap.get('scope'))
+            or any(finite(value.get('metrics',{}).get(k)) is None for k in ('sharpe','fitness','turnover'))):
+            raise ResearchError('详情不足以确认远程模拟完成；继续占用串行锁')
+        def work():
+            self.db.execute("UPDATE tasks SET remote_state='completed',state='paused',updated=? WHERE trial_id=?",(now(),trial_id))
+            self.event(trial['run_id'],'remote_completed',{'trial_id':trial_id,'alpha_id':value['alpha_id'],'detail_sha256':digest(value)})
         self.transaction(work)
 
     def bind_alpha(self,trial_id,alpha_id,recovery=None):
@@ -264,12 +323,24 @@ class Memory:
 
     def claim(self, trial_id, limit, account_ref=None, api_base_url=None):
         trial = self.trial(trial_id)
+        snap=json.loads(self.run(trial['run_id'])['snapshot'])
+        live=snap.get('mode')=='live' or account_ref is not None
+        if live:
+            import re
+            from .scheduling import api_origin
+            if not re.fullmatch(r'[0-9a-f]{64}',str(account_ref)) or api_origin(api_base_url) is None:
+                raise ResearchError('真实创建必须绑定账户/API；不能省略身份绕过串行保护')
+            expected=snap.get('catalog',{}).get('account_id')
+            if expected and digest(str(expected))!=account_ref:raise ResearchError('创建账户与原快照冲突')
+            if snap.get('mode')=='live' and api_origin(snap.get('brain',{}).get('base_url'))!=api_origin(api_base_url):
+                raise ResearchError('创建 API 与原快照冲突；不能切换地址绕过串行保护')
         def work():
-            if account_ref and self.db.execute('''SELECT 1 FROM tasks q JOIN trials t ON q.trial_id=t.id
-                WHERE t.context=? AND q.state IN ('dispatching','uncertain') AND t.id<>?''',
-                (trial['context'],trial_id)).fetchone():
-                raise ResearchError('当前范围仍有不确定创建；先只读对账，禁止新增 POST')
-            changed = self.db.execute("UPDATE tasks SET state='dispatching',updated=? WHERE trial_id=? AND state='queued'", (now(), trial_id)).rowcount
+            if self.db.execute('SELECT state FROM tasks WHERE trial_id=?',(trial_id,)).fetchone()[0]!='queued':return False
+            if live:
+                from .scheduling import blocking_tasks
+                blockers=blocking_tasks(self.db,account_ref,api_base_url,trial_id)
+                if blockers:raise ResearchError('同账户仍有未解决的远程模拟/不确定创建；先 GET 对账，禁止新增 POST：'+blockers[0]['trial_id'])
+            changed = self.db.execute("UPDATE tasks SET state='dispatching',remote_state='unresolved',updated=? WHERE trial_id=? AND state='queued'", (now(), trial_id)).rowcount
             if not changed:
                 return False
             changed = self.db.execute("UPDATE runs SET simulations=simulations+1 WHERE id=? AND simulations<?", (trial["run_id"], limit)).rowcount

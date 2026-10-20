@@ -1,3 +1,11 @@
+# V0.4.1 — Strict serialization, parsing and offline preview
+
+- Serialized account/API claims across runs and research contexts, including polling and unresolved paused/failed tasks; added explicit remote lifecycle state and conservative migration.
+- Rejected duplicate/empty/invalid recordset schema names, including empty and object-row recordsets.
+- Added offline dry-run, deduplicated creation estimates, stale-preview rejection and per-invocation creation caps for run/directed-run.
+- Added migration, cross-run/concurrent claim, preview and release-integrity regressions.
+- Added CI configuration, fixed-source ZIP verification and a limited credential-pattern scan. Remote CI and real account acceptance have not run this session.
+
 # V0.4.0 — Recovery and evidence before optimization
 
 - Account-list/detail GET recovery for dead Locations and ambiguous creates; zero/multiple/incomplete matches fail closed.

@@ -28,6 +28,14 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def research_context(config):
+    catalog=config['catalog_data']
+    semantic={'account_id':catalog.get('account_id'),'source':catalog.get('source'),
+        'operators':sorted(catalog['operators']),
+        'fields':{k:{a:v.get(a) for a in ('kind','point_in_time','min_delay')} for k,v in catalog['fields'].items()}}
+    return digest({'scope':config['scope'],'catalog':semantic,'mode':config['mode']})
+
+
 def load_settings(path):
     path = Path(path).resolve()
     config = tomllib.loads(path.read_text(encoding="utf-8"))

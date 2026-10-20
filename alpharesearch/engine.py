@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from .brain import BrainSimulator, DemoSimulator, pnl_isolation_valid
-from .common import ResearchError, digest, now, snapshot
+from .common import ResearchError, digest, now, snapshot, research_context
 from .evaluator import evaluate, shortlist
 from .pnl_evidence import daily_evidence_valid
 from .http import AmbiguousWrite, ApiError, PollTimeout
@@ -14,7 +14,11 @@ from .validator import InvalidExpression, Validator
 
 
 class Engine:
-    def __init__(self, config, run_id=None, simulator=None):
+    def __init__(self, config, run_id=None, simulator=None, simulation_limit=None):
+        maximum=config['rules']['max_simulations_per_run']
+        if simulation_limit is not None and (type(simulation_limit) is not int or not 0<=simulation_limit<=maximum):
+            raise ResearchError('无效的本次新增模拟上限')
+        self.simulation_limit=maximum if simulation_limit is None else simulation_limit
         self.memory = Memory(config["database"])
         try:self._initialize(config,run_id,simulator)
         except BaseException:
@@ -26,11 +30,7 @@ class Engine:
         self.snapshot = snapshot(config)
         self.simulator = simulator or (DemoSimulator() if config["mode"] == "demo" else BrainSimulator(config))
         self.validator = Validator(config["catalog_data"], config["scope"], config["rules"])
-        catalog = config["catalog_data"]
-        semantic_catalog = {"account_id": catalog.get("account_id"), "source": catalog.get("source"),
-            "operators": sorted(catalog["operators"]),
-            "fields": {k: {a: v.get(a) for a in ("kind", "point_in_time", "min_delay")} for k, v in catalog["fields"].items()}}
-        self.context = digest({"scope": config["scope"], "catalog": semantic_catalog, "mode": config["mode"]})
+        self.context = research_context(config)
         if config["mode"] == "live":
             catalog = config["catalog_data"]
             if catalog.get("source") != "brain-account-api":
@@ -50,6 +50,8 @@ class Engine:
         trial = self.memory.trial(trial_id)
         if trial["run_id"] != self.run_id:
             return {"trial_id": trial_id, "state": trial["state"], "reused": True}
+        if trial['state'] in ('completed','failed','abandoned') and trial.get('remote_state')=='unresolved' and isinstance(self.simulator,BrainSimulator):
+            return self.recover_trial(trial_id)
         if trial["state"] in ("completed", "rejected", "abandoned", "failed"):
             return {"trial_id": trial_id, "state": trial["state"]}
         if trial["state"] in ("dispatching", "uncertain"):
@@ -61,9 +63,11 @@ class Engine:
         try:
             if trial["state"] == "queued":
                 account_ref=getattr(self.simulator,'account_ref',None)
+                if not isinstance(self.simulator,BrainSimulator) and self.config['mode']=='live':
+                    account_ref=account_ref or digest(str(self.config['catalog_data'].get('account_id')))
                 if isinstance(self.simulator,BrainSimulator) and not account_ref:
                     raise ResearchError('须先验证当前登录账户；未发送 POST')
-                budget=self.config['rules']['max_simulations_per_run']
+                budget=self.simulation_limit
                 if self.memory.db.execute('SELECT 1 FROM directed_studies WHERE run_id=?',(self.run_id,)).fetchone():
                     budget=min(budget,6)
                 if not self.memory.claim(trial_id, budget,
@@ -112,7 +116,8 @@ class Engine:
                 self.memory.set_state(trial_id, "paused", error=str(e))
             else:
                 # Explicit 4xx rejection is terminal. Other errors may have created a remote simulation.
-                self.memory.set_state(trial_id, "failed" if e.status in (400, 401, 403, 422, 429) else "uncertain", error=str(e))
+                rejected=e.status in (400,401,403,422,429)
+                self.memory.set_state(trial_id, "failed" if rejected else "uncertain", error=str(e),remote_state='not_created' if rejected else None)
             raise
 
     def verify_result(self, trial, result):
@@ -136,17 +141,20 @@ class Engine:
         """No POST, including for dispatching/uncertain tasks without a Location."""
         from .reconciliation import assert_identity,recover_alpha
         trial=self.memory.trial(trial_id)
-        if trial['run_id']!=self.run_id or trial['state'] not in ('dispatching','uncertain','polling','paused'):
+        if trial['run_id']!=self.run_id or (trial['state'] not in ('dispatching','uncertain','polling','paused')
+                and trial.get('remote_state')!='unresolved'):
             raise ResearchError('只能恢复当前 run 的未完成任务')
         record=self.recovery_record(trial)
         try:
             assert_identity(self.simulator,record)
-            if trial.get('alpha_id') and not alpha_id:
-                value=self.simulator.collect(trial['alpha_id'],minimal=True)
+            known=trial.get('alpha_id') or (self.memory.latest(trial_id) or {}).get('alpha_id')
+            if known and not alpha_id:
+                value=self.simulator.collect(known,minimal=True)
             else:
                 value=recover_alpha(self.simulator,record,alpha_id)
             self.verify_result(trial,value)
             self.memory.bind_alpha(trial_id,value['alpha_id'],value.get('recovery'))
+            self.memory.confirm_remote_completed(trial_id,value)
             self.memory.set_state(trial_id,'paused',error='Alpha 已绑定；只读刷新证据')
             result=self.simulator.collect(value['alpha_id'])
             self.verify_result(trial,result)
@@ -218,7 +226,7 @@ class Engine:
             neighbor = {"expression": expression, "hypothesis": trial["hypothesis"], "source": "deterministic_parameter_sensitivity"}
             val = self.validator.validate(expression)
             existing=self.memory.existing_trial(self.context,val.fingerprint)
-            if not existing and self.memory.run(self.run_id)["simulations"] >= self.config["rules"]["max_simulations_per_run"]:
+            if not existing and self.memory.run(self.run_id)["simulations"] >= self.simulation_limit:
                 continue
             neighbor_id, fresh = self.memory.add_trial(self.run_id, neighbor, val, self.context, kind="sensitivity", parent_id=trial_id)
             # Link reused evidence explicitly; exact expression + settings + catalog dedup.
@@ -276,7 +284,7 @@ class Engine:
     def resume(self,continue_research=False):
         outcomes = []
         for trial in self.memory.trials(self.run_id):
-            if trial["state"] in ("paused", "polling", "dispatching", "uncertain") or (continue_research and trial['state']=='queued'):
+            if trial["state"] in ("paused", "polling", "dispatching", "uncertain") or trial.get('remote_state')=='unresolved' or (continue_research and trial['state']=='queued'):
                 outcomes.append(self.execute(trial["id"]))
         if not continue_research:
             return outcomes
