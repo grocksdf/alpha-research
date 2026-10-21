@@ -67,6 +67,12 @@ calendar_start = ""
 calendar_end = ""
 calendar_file = ""
 calendar_sha256 = ""
+# v0.5: unknown costs block normalized-return robustness reports. No defaults
+# for fees, slippage or net/gross status are inferred from a PnL field name.
+costs_reviewed = false
+net_of_costs = "unverified"
+cost_model_id = ""
+cost_review_note = ""
 
 [llm]
 # 兼容 Chat Completions + tools 的供应商；KEY 只从环境读取。

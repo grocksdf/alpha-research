@@ -1,3 +1,14 @@
+# V0.5.0 — Verified returns and offline robust research
+
+- Added explicit cash-PnL/NAV/simple-return contracts, audited calendar/sample/cost semantics, and immutable normalized series. Existing-Alpha GET audits can export verified IS inputs; missing evidence stays explicit.
+- Added seeded moving-block bootstrap, shared anchored-window calculations, full frozen parameter neighborhoods, and incremental cost scenarios without double-charging base net costs.
+- Added conditional CSCV PBO and DSR, with conservative minimum data and full-history/independence requirements; unavailable is never reported as zero overfitting risk.
+- Added read-only local attempt inventories retaining invalid, failed, unfinished and cached proposals without claiming account-wide completeness.
+- Added frozen one-dimensional evolution plans and offline deduplication previews. No evolution executor or additional Simulation approval; default planned budget remains zero.
+- Added reproducible JSON reports that cannot override the existing evaluator, Check or identity gates. No new database schema/migration; old snapshots and records remain intact.
+- Shipped explicitly synthetic examples and v0.4.2 upgrade/rollback instructions. No real BRAIN evidence, market validation, model comparison, submission or remote CI performed.
+- 270 offline tests pass (212 retained, 58 added), including constructed PBO=0/PBO=1 cases and DSR probability at its analytical null threshold.
+
 # V0.4.2 — Resume approval and corrupt history
 
 - Added GET-only resume dry-run and uniform live confirmation, rechecked inside Engine after authentication.

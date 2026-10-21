@@ -356,7 +356,7 @@ class Engine:
         run = self.memory.run(self.run_id)
         label=self.memory.db.execute("SELECT payload FROM events WHERE run_id=? AND kind='research_arm' ORDER BY id DESC LIMIT 1",(self.run_id,)).fetchone()
         def public(x):
-            return {k: v for k, v in x.items() if k not in ("pnl_changes","daily_returns")}
+            return {k: v for k, v in x.items() if k not in ("pnl_changes","daily_returns","verified_return_document")}
         return {"run_id": self.run_id, "mode": self.config["mode"], "created_at": now(),
                 'research_arm':json.loads(label[0]) if label else {'agent':'unspecified'},
                 "snapshot_hash": run["snapshot_hash"], "snapshot": self.snapshot,

@@ -1,33 +1,52 @@
-AlphaResearch v0.4.2 verification
-Base: delivered v0.4.1 archive; original repository commit 1eba5d8.
-Runtime actually tested: Linux, Python 3.12.14, standard library only.
+AlphaResearch v0.5.0 verification
+Base: delivered v0.4.2 archive; original public repository commit 1eba5d8.
+Runtime tested locally: Linux, Python 3.12.14; standard library only.
 
-Original v0.4.1 remote_result_complete(metrics=null) reproduced AttributeError.
-The prior resume --continue-research did not request preview confirmation.
+Suite: 270/270 tests pass (all original 212 retained, 58 new regressions).
+Coverage includes:
+- strict daily cash/cumulative cash/NAV/simple-return normalization, immutable
+  verified inputs, units/capital/cost/sample/calendar/identity rejection;
+- missing, duplicate, nonfinite, off-calendar and mixed-sample observations;
+- seeded moving-block sampling with within-block time ordering, all frozen
+  block lengths, anchored windows and complete prespecified neighborhoods;
+- all 70 CSCV half-block splits for an eight-block synthetic design, correct
+  constructed PBO=0 and PBO=1 rankings, ties and incomplete histories rejected;
+- DSR at its analytical null threshold gives 0.5, uses daily units, and refuses
+  unknown full-history variance, independent trial count or effective sample;
+- four-candidate PBO/DSR unavailable rather than fabricated low risk;
+- incremental cost scenarios, matched daily turnover and no repeat base fee;
+- read-only local attempt inventory retains failed/invalid/uncertain/reused
+  proposals and quarantines corrupt historical result containers;
+- all new analysis CLI avoid Engine, credentials, worker locks, HTTP and final
+  holdout computation; no DB creation/migration or existing history mutation;
+- existing-Alpha evidence export uses GET-only fixtures, records missing
+  contracts for all four requested IDs, creates no runs/simulations/submits;
+- frozen one-dimensional plans default to zero, reject budget expansion or
+  extra dimensions, reuse cached trials and show cross-run polling blockers;
+- reports preserve original evaluator and Check gates, reconcile identities,
+  reject tampered review hashes and retain failed/unfinished trial records;
+- v0.4.2 resume confirmations, per-call caps, uncertain POST accounting,
+  serialization, migration robustness, holdout isolation and release tests.
 
-Current suite: 212/212 tests pass (192 retained, 20 added).
-New regressions cover:
-- CLI confirmation rejection before credentials and Engine-level enforcement;
-- resume dry-run performs no HTTP/model calls, run creation or DB migration;
-- queue and sensitivity share the per-invocation budget, including prior spend;
-- zero cap, stale task state, authentication-time changes and cached parents;
-- uncertain creation consumes budget once and blocks subsequent creation;
-- frozen directed designs do not expand through resume;
-- ordinary resume remains GET-only, including corrupt queued/unresolved tags;
-- rejected expressions do not abort the remaining queue preview;
-- null/list/scalar/missing metrics and invalid outer JSON types fail closed;
-- completion confirmation cannot release locks with malformed metrics;
-- mixed corrupt/valid historical rows migrate without rewriting snapshots,
-  results, spent budget or prior audit history; repeated migration is stable.
+Release checks:
+- clean archive extraction, complete source manifest and limited credential
+  pattern scan; runtime DBs, live configs and account captures excluded;
+- offline analysis/freeze/plan/preview/report CLI and synthetic baseline flow;
+- v0.4.2 incremental patch forward/reverse verification and source hashes;
+- no new database tables or migration: existing snapshots/results/budgets
+  remain unchanged by the new analysis layer.
 
-Release validation:
-- source manifest, credential-pattern scan and archive integrity checked;
-- clean extraction and CLI baseline/directed/resume preview flows checked;
-- incremental patch applies to v0.4.1 and reconstructs all current source hashes;
-- runtime databases, live configs, credentials and account captures excluded.
+No evolution-run executor was added. Planned limits are not creation approval.
+The original research/submission switches remain false. Historical submission
+POST counts are unknown; only this analysis invocation's count is zero.
 
-Not executed: BRAIN login or real Alpha/Check/PnL requests, real simulations,
-model inference, licensed market validation, submission, remote CI or GitHub push.
-All responses and return observations are synthetic protocol fixtures. PnL units,
-cumulative/daily conventions, authoritative calendars and exact live IS bounds
-remain unverified. Software correctness does not establish alpha effectiveness.
+NOT executed: BRAIN authentication or real Alpha/Check/PnL requests, Phase C
+four-Alpha audit, real simulations, model inference, licensed market research,
+submission, remote CI or GitHub push. Actual units, calendars, cost semantics,
+IS dates and full account trial history remain unverified. Example returns,
+calendars and turnover are synthetic with no financial interpretation.
+
+Thresholds such as eight candidates/trials and 14-day calendar edge checks are
+conservative local protocol choices, not BRAIN rules or scientific guarantees.
+Local review flags, timestamps and hashes are not tamper-resistant attestations.
+PBO/DSR/Bootstrap diagnostics do not establish alpha discovery effectiveness.

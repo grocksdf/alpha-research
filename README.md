@@ -1,11 +1,33 @@
-# AlphaResearch V0.4.2
+# AlphaResearch V0.5.0
 
 一个 Research Agent，四个确定性组件。基于仓库 v0.3.5 迭代，Python 3.11+，运行与测试均只依赖标准库。
 
-**本版统一继续研究的预览与预算确认，并增强旧结果迁移容错，212 项离线测试通过。**
+**本版新增收益证据契约、区块 Bootstrap、PBO/DSR 拒算条件、成本情景、单参数计划与可复现报告。默认新增模拟 0，研究与提交开关继续关闭。**
+270 项离线单元与回归测试通过（保留原 212 项）。
 本次环境没有 BRAIN 凭据和四个已有 Alpha 的 ID，未登录、未读取真实证据、未创建模拟、未提交。
 仓库早期文档记载过账户探测；这些历史记述不等于本次验收，也不证明 PnL 语义或 Alpha 有效。
 随附 Demo 仍是合成数据；真实 AI 优势、独立市场验证、积分和资格均未证明。
+
+## v0.5.0：先核实收益，再做离线诊断
+
+新增分析只接受审核过的日收益序列，不猜测货币/百分比、本金、累计/日频、成本、日历或 IS 边界。
+缺证据返回 `insufficient_evidence`；四候选或完整试验史/独立性校准不足时 PBO/DSR 为 `unavailable`。
+新报告不改变原评价器的硬门槛，Self Correlation 未 PASS 不得升级；分析不读取最终盲测或反馈给 Agent。
+
+```bash
+# 先体验完全合成的离线例子，不访问账户、不创建数据库：
+python -m alpharesearch verify-returns --manifest examples/synthetic-returns-manifest.json --output state/demo-contract-review.json
+python -m alpharesearch robustness-audit --manifest examples/synthetic-returns-manifest.json --protocol examples/frozen-analysis-protocol.json --output state/demo-robustness.json
+# 单参数冻结与去重预览，默认规划预算 0；本版没有 evolution-run：
+python -m alpharesearch evolution-plan --spec examples/evolution-study.json --output state/evolution-plan.json
+python -m alpharesearch evolution-preview --plan state/evolution-plan.json
+```
+
+已有 Alpha 的 `audit-alphas` 可选 `--returns-output`，只导出契约完整的 IS 数据；未验证项保留阻断原因。
+`attempt-history` 只读保留失败、无效、未完成和缓存复用记录，不冒充账户完整历史。
+`research-report` 汇总已有评审、平台原始指标、费用与诊断；重复输入不算新独立证据。
+**没有新增数据库迁移或创建执行入口。** 升级/回滚、成本审核字段、全部 CLI 与方法限制见
+[v0.5.0 操作说明](docs/v0.5.0-robust-research.md)。离线示例报告见 [robustness-report.json](examples/robustness-report.json)。
 
 ## v0.4.2：继续研究也必须确认预览
 

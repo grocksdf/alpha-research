@@ -52,7 +52,7 @@ def observe_pnl(payload, context=None, isolation=None):
     return value
 
 
-def audit_existing_alphas(simulator,manifest_path,output):
+def audit_existing_alphas(simulator,manifest_path,output,returns_output=None):
     """Manifest binds IDs to expected formulas/settings; it never creates jobs."""
     from .probe import _write_fresh,_update
     manifest=json.loads(Path(manifest_path).read_text(encoding='utf-8'))
@@ -68,7 +68,13 @@ def audit_existing_alphas(simulator,manifest_path,output):
         ids.add(row['alpha_id'])
     if not re.fullmatch(r'[0-9a-f]{64}',str(simulator.account_ref)):
         raise ResearchError('先验证当前账户；报告不是授权证明')
-    report={'version':'0.4.0','mode':'existing_alphas_readonly_audit','state':'auditing','created_at':now(),
+    if returns_output:
+        if Path(returns_output).resolve()==Path(output).resolve() or Path(returns_output).resolve()==Path(manifest_path).resolve():
+            raise ResearchError('收益导出不能覆盖输入清单或审计报告')
+        if Path(returns_output).exists():raise ResearchError('收益导出已存在；保留历史并指定新路径')
+    returns_manifest={'format':'verified-returns-manifest-v1','series':[],
+                      'network_requests':'GET_evidence_only_after_authentication','simulation_posts':0,'submit_posts':0}
+    report={'version':'0.5.0','mode':'existing_alphas_readonly_audit','state':'auditing','created_at':now(),
         'account_ref':simulator.account_ref,'api_base_url':simulator.paths['base_url'],
         'manifest_sha256':digest(manifest),'simulation_created':False,'submission_requested':False,
         'alphas':[],'real_evidence_acceptance_completed':False}
@@ -89,17 +95,25 @@ def audit_existing_alphas(simulator,manifest_path,output):
                 evidence_source=value.get('evidence_source'),pnl_observation=value.get('pnl_observation'),
                 pnl_isolation=value.get('pnl_isolation'),daily_evidence=value.get('daily_evidence'),
                 daily_evidence_complete=daily,evidence_errors=value.get('evidence_errors'),
-                stability=stability_windows(value if reconciled else {},simulator.config['policy']),
+                return_verification=value.get('return_verification',{'status':'insufficient_evidence','reasons':['missing_reviewed_return_contract']}),
+                stability=stability_windows(value if reconciled and value.get('return_verification',{}).get('status')=='verified' else {},simulator.config['policy']),
                 # This audit has no sensitivity or independent validation gate.
                 ready_to_submit=False)
+            document=value.get('verified_return_document') if reconciled else None
+            returns_manifest['series'].append(document or {'candidate_id':row['alpha_id'],
+                'verification':item['return_verification'],'contract':None})
         except (ApiError,ResearchError) as error:
             item['error']=str(error)
+            returns_manifest['series'].append({'candidate_id':row['alpha_id'],'contract':None,
+                'verification':{'status':'insufficient_evidence','reasons':[str(error)]}})
         report['alphas'].append(item)
         _update(target,report)
     report['state']='completed'
     report['real_evidence_acceptance_completed']=bool(report['alphas']) and all(
-        a.get('daily_evidence_complete') and a.get('evidence_source',{}).get('transport')=='account_http'
+        a.get('daily_evidence_complete') and a.get('return_verification',{}).get('status')=='verified'
+        and a.get('evidence_source',{}).get('transport')=='account_http'
         for a in report['alphas'])
     report['notice']='GET 证据审计不等于可提交；未核实的单位、日历和 IS 边界不计算稳定性。报告不要反馈给 Agent。'
     _update(target,report)
+    if returns_output:_write_fresh(returns_output,returns_manifest)
     return report

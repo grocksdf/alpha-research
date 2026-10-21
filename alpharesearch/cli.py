@@ -61,7 +61,7 @@ def credentials():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="AlphaResearch V0.4.2 统一恢复预算与历史证据容错")
+    parser = argparse.ArgumentParser(description="AlphaResearch V0.5.0 收益证据与离线稳健性研究")
     parser.add_argument("--config", default="config/settings.toml")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="离线配置检查；不登录")
@@ -82,6 +82,22 @@ def main(argv=None):
     audit.add_argument('--manifest',required=True,help='JSON 数组：alpha_id、expression、settings')
     audit.add_argument('--output',default='state/alphas-evidence-audit.json')
     audit.add_argument('--trace',help='脱敏结构追踪文件')
+    audit.add_argument('--returns-output',help='仅导出契约已验证的 IS 收益输入；缺证据项保留阻断原因')
+    analysis_freeze=sub.add_parser('analysis-freeze',help='冻结离线统计协议；只写指定 JSON，不接触账户或数据库')
+    analysis_freeze.add_argument('--spec',required=True);analysis_freeze.add_argument('--output',required=True)
+    verify_returns=sub.add_parser('verify-returns',help='离线复核收益契约；不计算绩效，不读最终留出')
+    verify_returns.add_argument('--manifest',required=True);verify_returns.add_argument('--output',required=True)
+    attempts=sub.add_parser('attempt-history',help='只读导出全部本地尝试、失败与复用；不冒充账户完整历史')
+    attempts.add_argument('--output',required=True)
+    for command in ('robustness-audit','selection-bias-audit','research-report'):
+        analysis=sub.add_parser(command,help='离线只读分析已有研究 IS；只写新的报告，不改变提交资格')
+        analysis.add_argument('--manifest',required=True);analysis.add_argument('--protocol',required=True)
+        analysis.add_argument('--output',required=True)
+        if command=='research-report':analysis.add_argument('--review',help='已有 Engine 评审包；只引用原准入结论')
+    evolution_plan=sub.add_parser('evolution-plan',help='冻结单维度小范围计划；默认新增预算 0，不提供执行入口')
+    evolution_plan.add_argument('--spec',required=True);evolution_plan.add_argument('--output',required=True)
+    evolution_preview=sub.add_parser('evolution-preview',help='离线只读去重估算；不授权新建 Simulation')
+    evolution_preview.add_argument('--plan',required=True);evolution_preview.add_argument('--output')
     directed=sub.add_parser('directed-plan',help='冻结六公式/单参数变更/6 次模拟上限；不调用账户')
     directed.add_argument('--study-id',required=True)
     directed.add_argument('--output',default='state/directed-plan.json')
@@ -163,6 +179,31 @@ def main(argv=None):
     engine = None
     try:
         config = load_settings(args.config)
+        if args.command in ('analysis-freeze','verify-returns','attempt-history','robustness-audit','selection-bias-audit',
+                            'research-report','evolution-plan','evolution-preview'):
+            from .analysis_protocol import read_json,load_manifest,freeze_protocol
+            from .probe import _write_fresh
+            if args.command=='analysis-freeze':value=freeze_protocol(read_json(args.spec))
+            elif args.command=='attempt-history':
+                from .attempt_history import inventory
+                value=inventory(config['database'])
+            elif args.command=='verify-returns':
+                from .return_contract import review_return_document
+                value={'mode':'offline_return_contract_review','series':[review_return_document(d)[1] for d in load_manifest(args.manifest)['series']],
+                       'network_requests':0,'simulation_posts':0,'submit_posts':0,'database_mutated':False}
+            elif args.command in ('evolution-plan','evolution-preview'):
+                from .evolution import create_plan,preview_plan
+                value=create_plan(config,read_json(args.spec)) if args.command=='evolution-plan' else preview_plan(config,read_json(args.plan))
+            else:
+                from .research_report import analyze_manifest,research_report
+                manifest=load_manifest(args.manifest);protocol=read_json(args.protocol)
+                if args.command=='research-report':value=research_report(manifest,protocol,read_json(args.review) if args.review else None)
+                else:
+                    value=analyze_manifest(manifest,protocol)
+                    if args.command=='selection-bias-audit':
+                        value={k:v for k,v in value.items() if k!='series'}|{'dsr':[{'candidate_id':s['candidate_id'],'dsr':s['dsr']} for s in value['series']]}
+            if getattr(args,'output',None):_write_fresh(args.output,value)
+            print_json(value);return
         estimate=None;allowed=None
         if args.command=='resume':
             if not args.continue_research and (args.max_new_simulations is not None or args.confirm_preview is not None):
@@ -254,7 +295,7 @@ def main(argv=None):
                 credentials();simulator=BrainSimulator(config)
                 simulator.api.observer=ShapeRecorder(args.trace or args.output+'.shapes.jsonl')
                 simulator.login()
-                print_json(audit_existing_alphas(simulator,args.manifest,args.output));return
+                print_json(audit_existing_alphas(simulator,args.manifest,args.output,args.returns_output));return
             if args.command=='probe-evidence':
                 from .probe import inspect_alpha_evidence
                 from .trace import ShapeRecorder

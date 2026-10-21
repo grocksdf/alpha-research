@@ -1,0 +1,30 @@
+{
+  "study_id": "offline-design-example-unfunded",
+  "sample_role": "research_is",
+  "max_new_simulations": 0,
+  "families": [
+    {
+      "family_id": "return_normalized_short_reversal",
+      "dimension": "window",
+      "baseline_value": 5,
+      "values": [5, 10, 20],
+      "template": "-rank(ts_mean(returns, {window}))",
+      "expected_direction": "延长收益率反转的平均窗口，检验换手下降能否抵消信号衰减。",
+      "counter_hypothesis": "反转只在短期有效，延长窗口会损失预测信息。"
+    },
+    {
+      "family_id": "smoothed_vwap_deviation",
+      "dimension": "window",
+      "baseline_value": 5,
+      "values": [5, 10],
+      "template": "-rank(ts_mean((close-vwap)/vwap, {window}))",
+      "expected_direction": "平滑归一化 VWAP 偏离以降低换手。",
+      "counter_hypothesis": "平滑后无法及时捕捉价格偏离的回归。"
+    }
+  ],
+  "independent_validation": {
+    "mode": "separate_frozen_validation",
+    "manifest_sha256": null,
+    "feedback_to_agent": false
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "study_id": "SYNTHETIC_DEMO_NOT_FINANCIAL_EVIDENCE",
+  "sample_role": "research_is",
+  "frozen_before_observation": true,
+  "registration_note": "合成示例；不声称真实事前注册或独立验证",
+  "candidate_universe": [
+    "SYNTHETIC_0",
+    "SYNTHETIC_1",
+    "SYNTHETIC_2",
+    "SYNTHETIC_3"
+  ],
+  "is_interval": {
+    "start": "2020-01-02",
+    "end": "2021-12-07"
+  },
+  "annualization": 252,
+  "risk_free_return_per_day": 0,
+  "bootstrap": {
+    "block_lengths": [
+      5,
+      10,
+      20
+    ],
+    "replicates": 200,
+    "seed": 20261020,
+    "confidence": 0.95
+  },
+  "stability_window_sessions": 126,
+  "min_stability_windows": 4,
+  "pbo": {
+    "blocks": 8,
+    "metric": "daily_sharpe",
+    "ties": "unavailable",
+    "min_candidates": 8,
+    "min_observations": 252
+  },
+  "plateaus": [
+    {
+      "family": "SYNTHETIC_EXAMPLE_NOT_A_STRATEGY",
+      "dimension": "hypothetical_window",
+      "candidate_ids": [
+        "SYNTHETIC_0",
+        "SYNTHETIC_1",
+        "SYNTHETIC_2"
+      ],
+      "parameter_values": [
+        5,
+        10,
+        20
+      ],
+      "baseline_id": "SYNTHETIC_1",
+      "minimum_sharpe": 0.0,
+      "minimum_fraction_of_baseline": 0.8
+    }
+  ],
+  "cost_scenarios": [
+    {
+      "id": "illustrative_zero_increment",
+      "kind": "incremental_cost",
+      "bps": 0
+    },
+    {
+      "id": "illustrative_two_bps_increment",
+      "kind": "incremental_cost",
+      "bps": 2
+    }
+  ]
+}

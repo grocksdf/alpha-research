@@ -189,14 +189,25 @@ def stability_windows(result,policy):
                     'expected_observations':length,'observations':count,'coverage':count/length,'sharpe':None})
         result_base['reasons']=['unverified_or_incomplete_daily_pnl'];return result_base
     sessions=result['daily_evidence']['session_dates'];keys=[a+'/'+b for a,b in zip(sessions,sessions[1:])]
+    return fixed_window_diagnostics(keys,[result['daily_returns'][k] for k in keys],policy)
+
+
+def fixed_window_diagnostics(keys,values,policy):
+    """Shared pure calculation for verified daily returns; no submission decision."""
+    length=policy['stability_window_sessions'];minimum=policy['min_stability_windows']
+    annual=policy['stability_annualization']
+    if len(keys)!=len(values):raise ValueError('固定窗口日期和值未对齐')
+    result_base={'method':'fixed_nonoverlapping_session_windows_v1','window_sessions':length,'minimum_windows':minimum,
+                 'annualization':annual,'windows':[],'complete':False,'positive_fraction':None,'worst_window_sharpe':None,
+                 'reasons':[],'not_brain_reported_sharpe':True}
     windows=[]
     for start in range(0,len(keys)-length+1,length):
-        block=keys[start:start+length];values=[result['daily_returns'][k] for k in block]
-        sd=statistics.stdev(values)
-        score=statistics.mean(values)/sd*math.sqrt(annual) if sd>1e-12 else None
+        block=keys[start:start+length];part=values[start:start+length]
+        sd=statistics.stdev(part)
+        score=statistics.mean(part)/sd*math.sqrt(annual) if sd>1e-12 else None
         if score is not None and not math.isfinite(score):score=None
-        windows.append({'start_date':block[0].split('/')[0],'end_date':block[-1].split('/')[1],
-            'expected_observations':length,'observations':len(values),'coverage':1.0,'sharpe':score})
+        windows.append({'start_date':block[0].split('/')[0],'end_date':block[-1].split('/')[-1],
+            'expected_observations':length,'observations':len(part),'coverage':1.0,'sharpe':score})
     result_base.update(windows=windows,trailing_observations=len(keys)%length,available_intervals=len(keys))
     if len(windows)<minimum:result_base['reasons'].append('insufficient_fixed_stability_windows')
     if any(w['sharpe'] is None for w in windows):result_base['reasons'].append('undefined_window_sharpe')

@@ -1,0 +1,975 @@
+{
+  "version": "0.5.0",
+  "mode": "offline_research_report",
+  "study_id": "SYNTHETIC_DEMO_NOT_FINANCIAL_EVIDENCE",
+  "analysis_id": "51c8fe5eee932e1a1786555ad5cae912d176fc1f863826c931dedd8e1c3d5548",
+  "analysis_code_sha256": "de362057237c4c94e22a3ef2d9a5b85f489f6523cdf935376870fae2b3937fc1",
+  "algorithm_version": "robust-research-v1",
+  "manifest_sha256": "1d22d08e2c3875081488d384c7dc9c47042707544eea7db81a6a04c11a69e402",
+  "protocol_sha256": "872dd2ae61836c8956bc84d241d3bc0351a276075bb72d13888a969ce67dd9d4",
+  "status": "computed",
+  "series": [
+    {
+      "candidate_id": "SYNTHETIC_0",
+      "evidence": {
+        "candidate_id": "SYNTHETIC_0",
+        "status": "verified",
+        "input_sha256": "2eb9e9339b3a9a1cb78841e1a8d5ce25579df6c8085ba80d2e6820f453057cc5",
+        "observations": 504,
+        "start_date": "2020-01-02",
+        "end_date": "2021-12-07",
+        "return_unit": "fraction",
+        "synthetic": true,
+        "contract_sha256": "b7fc15d933e3b3eb68ce58eaed4f13bc66e1dfcdd0b1ca40115b92aff229bbfe",
+        "empirical_evidence": false
+      },
+      "robustness": {
+        "candidate_id": "SYNTHETIC_0",
+        "input_sha256": "2eb9e9339b3a9a1cb78841e1a8d5ce25579df6c8085ba80d2e6820f453057cc5",
+        "protocol_sha256": "872dd2ae61836c8956bc84d241d3bc0351a276075bb72d13888a969ce67dd9d4",
+        "synthetic": true,
+        "status": "computed",
+        "bootstrap": [
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 5,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 0.9514643737422923,
+            "confidence_interval": [
+              -1.175334065698629,
+              3.1265767924730294
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "9605553bf0e3f2dedb640fe75a27d5b3cb4330e4996f3de6ead1a32a826e4e51",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 10,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 0.9514643737422923,
+            "confidence_interval": [
+              -0.7959417606931167,
+              2.8550297288502486
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "687e2da2b567213f6b28d46f54c1e75b43e7483ba78e94f69e758b77b687b5fc",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 20,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 0.9514643737422923,
+            "confidence_interval": [
+              -1.2153546450507948,
+              2.575710905356494
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "087d2dba347d76e7869d828ceeccd9a5b88243c900320ef87c9e7dcf02c9dfef",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          }
+        ],
+        "fixed_windows": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [
+            {
+              "start_date": "2020-01-02",
+              "end_date": "2020-06-25",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.8263415866097352
+            },
+            {
+              "start_date": "2020-06-26",
+              "end_date": "2020-12-18",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 0.3631073458107581
+            },
+            {
+              "start_date": "2020-12-21",
+              "end_date": "2021-06-14",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 0.5666506128080324
+            },
+            {
+              "start_date": "2021-06-15",
+              "end_date": "2021-12-07",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.0485439360947109
+            }
+          ],
+          "complete": true,
+          "positive_fraction": 1.0,
+          "worst_window_sharpe": 0.3631073458107581,
+          "reasons": [],
+          "not_brain_reported_sharpe": true,
+          "trailing_observations": 0,
+          "available_intervals": 504
+        },
+        "all_prespecified_blocks_reported": true,
+        "not_brain_metrics": true,
+        "submission_eligibility_changed": false
+      },
+      "dsr": {
+        "method": "deflated_sharpe_daily_v1",
+        "status": "unavailable",
+        "value": null,
+        "reasons": [
+          "complete_historical_attempts_not_audited"
+        ]
+      },
+      "cost_stress": {
+        "candidate_id": "SYNTHETIC_0",
+        "method": "incremental_cost_scenarios_v1",
+        "base_net_of_costs": false,
+        "base_cost_model_id": "SYNTHETIC_GROSS",
+        "hypothetical_scenarios": true,
+        "not_brain_reported_metrics": true,
+        "base_costs_subtracted_again": false,
+        "scenarios": [
+          {
+            "id": "illustrative_zero_increment",
+            "kind": "incremental_cost",
+            "bps": 0,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 0.9514643737422923,
+              "mean_daily_return": 0.0004177676995518112
+            },
+            "return_sha256": "6aceac754a19b44d6319d331b3b5c2776a24eba18961377e4508ff883be03316",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          },
+          {
+            "id": "illustrative_two_bps_increment",
+            "kind": "incremental_cost",
+            "bps": 2,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 0.8148145980756184,
+              "mean_daily_return": 0.0003577676995518113
+            },
+            "return_sha256": "b8a4a3a156630480da8063959c33e19356cb8f2d8376b32d52e1439630b389db",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          }
+        ],
+        "status": "computed",
+        "turnover_contract_sha256": "d9458daa854a099a89d28b1ad8797ce87e9817d50567e865a3362664bf71f60a",
+        "reasons": []
+      },
+      "candidate_status": "research_candidate",
+      "ready_to_submit": false,
+      "return_contract": {
+        "calendar_id": "SYNTHETIC_WEEKDAYS_NOT_EXCHANGE_CALENDAR",
+        "calendar_sha256": "d0d9720c661389e72010d1660be09dc5625d31c7e4d627f50508eab305ed0b87",
+        "capital_basis": {
+          "kind": "already_normalized",
+          "reviewed": true
+        },
+        "cost_model_id": "SYNTHETIC_GROSS",
+        "cost_review_note": "合成毛收益，没有 BRAIN 成本假设",
+        "costs_reviewed": true,
+        "dataset_id": "SYNTHETIC_ONLY",
+        "excluded_intervals": [],
+        "is_interval": {
+          "end": "2021-12-07",
+          "start": "2020-01-02"
+        },
+        "is_reviewed": true,
+        "net_of_costs": false,
+        "pit_reviewed": true,
+        "population_id": "SYNTHETIC_ONLY",
+        "protocol": "verified-return-contract-v1",
+        "return_basis": "simple_return",
+        "review_note": "合成测试；没有金融含义",
+        "review_source_sha256": "8c75e9d6e273e499359f7534e1a50a982e1eab69a354870c5d0ef511ce4e7151",
+        "reviewed": true,
+        "sample_role": "research_is",
+        "scope": {
+          "delay": 1,
+          "region": "USA",
+          "universe": "SYNTHETIC_ONLY"
+        },
+        "source_id": "SYNTHETIC_GENERATOR",
+        "source_type": "independent_pit_panel",
+        "unit": "fraction",
+        "value_semantics": "daily_return"
+      }
+    },
+    {
+      "candidate_id": "SYNTHETIC_1",
+      "evidence": {
+        "candidate_id": "SYNTHETIC_1",
+        "status": "verified",
+        "input_sha256": "3956a6442c112e9931af89f57fff6be54ac3aea73f9e9f0c934c2f8f7522ddf5",
+        "observations": 504,
+        "start_date": "2020-01-02",
+        "end_date": "2021-12-07",
+        "return_unit": "fraction",
+        "synthetic": true,
+        "contract_sha256": "b7fc15d933e3b3eb68ce58eaed4f13bc66e1dfcdd0b1ca40115b92aff229bbfe",
+        "empirical_evidence": false
+      },
+      "robustness": {
+        "candidate_id": "SYNTHETIC_1",
+        "input_sha256": "3956a6442c112e9931af89f57fff6be54ac3aea73f9e9f0c934c2f8f7522ddf5",
+        "protocol_sha256": "872dd2ae61836c8956bc84d241d3bc0351a276075bb72d13888a969ce67dd9d4",
+        "synthetic": true,
+        "status": "computed",
+        "bootstrap": [
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 5,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.1792139998534157,
+            "confidence_interval": [
+              -0.9389491073450789,
+              3.3553323809844477
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "265f437ee7d0deeaa09425353d9a3f0270af9fabd90ed0bc2a5ab534a46c4d13",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 10,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.1792139998534157,
+            "confidence_interval": [
+              -0.5683244119332415,
+              3.0818940933581973
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "ba2fc05357a0b9c4441d167adee90535fb9e8138cfea10530ae602dd9c73b401",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 20,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.1792139998534157,
+            "confidence_interval": [
+              -0.9871603177404659,
+              2.8071774968194614
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "0acb6a1d905c86e691598ceb758c14dc10f85579fce0f31f7d5eb1a8bc2e9726",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          }
+        ],
+        "fixed_windows": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [
+            {
+              "start_date": "2020-01-02",
+              "end_date": "2020-06-25",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 2.0551944778877465
+            },
+            {
+              "start_date": "2020-06-26",
+              "end_date": "2020-12-18",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 0.5875835726417408
+            },
+            {
+              "start_date": "2020-12-21",
+              "end_date": "2021-06-14",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 0.7969087433283827
+            },
+            {
+              "start_date": "2021-06-15",
+              "end_date": "2021-12-07",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.273951054175574
+            }
+          ],
+          "complete": true,
+          "positive_fraction": 1.0,
+          "worst_window_sharpe": 0.5875835726417408,
+          "reasons": [],
+          "not_brain_reported_sharpe": true,
+          "trailing_observations": 0,
+          "available_intervals": 504
+        },
+        "all_prespecified_blocks_reported": true,
+        "not_brain_metrics": true,
+        "submission_eligibility_changed": false
+      },
+      "dsr": {
+        "method": "deflated_sharpe_daily_v1",
+        "status": "unavailable",
+        "value": null,
+        "reasons": [
+          "complete_historical_attempts_not_audited"
+        ]
+      },
+      "cost_stress": {
+        "candidate_id": "SYNTHETIC_1",
+        "method": "incremental_cost_scenarios_v1",
+        "base_net_of_costs": false,
+        "base_cost_model_id": "SYNTHETIC_GROSS",
+        "hypothetical_scenarios": true,
+        "not_brain_reported_metrics": true,
+        "base_costs_subtracted_again": false,
+        "scenarios": [
+          {
+            "id": "illustrative_zero_increment",
+            "kind": "incremental_cost",
+            "bps": 0,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 1.1792139998534157,
+              "mean_daily_return": 0.000517767699551811
+            },
+            "return_sha256": "b8ac75936e3771d364e935a0ff6f861dc67653a910e60da6eb5b5eb7db8308f7",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          },
+          {
+            "id": "illustrative_two_bps_increment",
+            "kind": "incremental_cost",
+            "bps": 2,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 1.0607841942756315,
+              "mean_daily_return": 0.00046576769955181113
+            },
+            "return_sha256": "195cdfc4951207ec953d6814ead454a3e306df992d19deb04062059adf08f19a",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          }
+        ],
+        "status": "computed",
+        "turnover_contract_sha256": "cae1ed5fe8327706ff02e31e88cc80a887f4db680cc5ece8dc00f94ef3a8efe4",
+        "reasons": []
+      },
+      "candidate_status": "research_candidate",
+      "ready_to_submit": false,
+      "return_contract": {
+        "calendar_id": "SYNTHETIC_WEEKDAYS_NOT_EXCHANGE_CALENDAR",
+        "calendar_sha256": "d0d9720c661389e72010d1660be09dc5625d31c7e4d627f50508eab305ed0b87",
+        "capital_basis": {
+          "kind": "already_normalized",
+          "reviewed": true
+        },
+        "cost_model_id": "SYNTHETIC_GROSS",
+        "cost_review_note": "合成毛收益，没有 BRAIN 成本假设",
+        "costs_reviewed": true,
+        "dataset_id": "SYNTHETIC_ONLY",
+        "excluded_intervals": [],
+        "is_interval": {
+          "end": "2021-12-07",
+          "start": "2020-01-02"
+        },
+        "is_reviewed": true,
+        "net_of_costs": false,
+        "pit_reviewed": true,
+        "population_id": "SYNTHETIC_ONLY",
+        "protocol": "verified-return-contract-v1",
+        "return_basis": "simple_return",
+        "review_note": "合成测试；没有金融含义",
+        "review_source_sha256": "8c75e9d6e273e499359f7534e1a50a982e1eab69a354870c5d0ef511ce4e7151",
+        "reviewed": true,
+        "sample_role": "research_is",
+        "scope": {
+          "delay": 1,
+          "region": "USA",
+          "universe": "SYNTHETIC_ONLY"
+        },
+        "source_id": "SYNTHETIC_GENERATOR",
+        "source_type": "independent_pit_panel",
+        "unit": "fraction",
+        "value_semantics": "daily_return"
+      }
+    },
+    {
+      "candidate_id": "SYNTHETIC_2",
+      "evidence": {
+        "candidate_id": "SYNTHETIC_2",
+        "status": "verified",
+        "input_sha256": "ac84c55390e0da0bacee004c2441b77911dd0be6b705d69c00bbf6435f9fb305",
+        "observations": 504,
+        "start_date": "2020-01-02",
+        "end_date": "2021-12-07",
+        "return_unit": "fraction",
+        "synthetic": true,
+        "contract_sha256": "b7fc15d933e3b3eb68ce58eaed4f13bc66e1dfcdd0b1ca40115b92aff229bbfe",
+        "empirical_evidence": false
+      },
+      "robustness": {
+        "candidate_id": "SYNTHETIC_2",
+        "input_sha256": "ac84c55390e0da0bacee004c2441b77911dd0be6b705d69c00bbf6435f9fb305",
+        "protocol_sha256": "872dd2ae61836c8956bc84d241d3bc0351a276075bb72d13888a969ce67dd9d4",
+        "synthetic": true,
+        "status": "computed",
+        "bootstrap": [
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 5,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.40696362596454,
+            "confidence_interval": [
+              -0.7025641489915279,
+              3.5839941322473954
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "ec657032d3b4400e919e3875961b69f69fccce7612d0f3fda45211afe774f3af",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 10,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.40696362596454,
+            "confidence_interval": [
+              -0.3407070631733652,
+              3.308758457866147
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "5b4053a327a3e007c4f5b2d8d6f73548f48a9dca58a512a01c5dd88c3d0a3f5f",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 20,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.40696362596454,
+            "confidence_interval": [
+              -0.758965990430136,
+              3.038644088282429
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "4b7c5e3dd2ad6d05d5abf91765cc85a1af74bfb597bbfcddeb3d7e5011761a00",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          }
+        ],
+        "fixed_windows": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [
+            {
+              "start_date": "2020-01-02",
+              "end_date": "2020-06-25",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 2.284047369165759
+            },
+            {
+              "start_date": "2020-06-26",
+              "end_date": "2020-12-18",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 0.8120597994727244
+            },
+            {
+              "start_date": "2020-12-21",
+              "end_date": "2021-06-14",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.0271668738487338
+            },
+            {
+              "start_date": "2021-06-15",
+              "end_date": "2021-12-07",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.4993581722564384
+            }
+          ],
+          "complete": true,
+          "positive_fraction": 1.0,
+          "worst_window_sharpe": 0.8120597994727244,
+          "reasons": [],
+          "not_brain_reported_sharpe": true,
+          "trailing_observations": 0,
+          "available_intervals": 504
+        },
+        "all_prespecified_blocks_reported": true,
+        "not_brain_metrics": true,
+        "submission_eligibility_changed": false
+      },
+      "dsr": {
+        "method": "deflated_sharpe_daily_v1",
+        "status": "unavailable",
+        "value": null,
+        "reasons": [
+          "complete_historical_attempts_not_audited"
+        ]
+      },
+      "cost_stress": {
+        "candidate_id": "SYNTHETIC_2",
+        "method": "incremental_cost_scenarios_v1",
+        "base_net_of_costs": false,
+        "base_cost_model_id": "SYNTHETIC_GROSS",
+        "hypothetical_scenarios": true,
+        "not_brain_reported_metrics": true,
+        "base_costs_subtracted_again": false,
+        "scenarios": [
+          {
+            "id": "illustrative_zero_increment",
+            "kind": "incremental_cost",
+            "bps": 0,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 1.40696362596454,
+              "mean_daily_return": 0.0006177676995518114
+            },
+            "return_sha256": "39b9a2a119d1f24ad8d378879d9ed2fd50d4f31eeb56cf72abc438cc395b9843",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          },
+          {
+            "id": "illustrative_two_bps_increment",
+            "kind": "incremental_cost",
+            "bps": 2,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 1.3067537904756452,
+              "mean_daily_return": 0.0005737676995518112
+            },
+            "return_sha256": "0f0201db9eb9265fe1ec66edd574d153c5636a627a9be0b5ccb18888a699c6df",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          }
+        ],
+        "status": "computed",
+        "turnover_contract_sha256": "f44fe52302987773a1fad5c9d7cb030b837f05a3f776115704a6d90ddfb07d79",
+        "reasons": []
+      },
+      "candidate_status": "research_candidate",
+      "ready_to_submit": false,
+      "return_contract": {
+        "calendar_id": "SYNTHETIC_WEEKDAYS_NOT_EXCHANGE_CALENDAR",
+        "calendar_sha256": "d0d9720c661389e72010d1660be09dc5625d31c7e4d627f50508eab305ed0b87",
+        "capital_basis": {
+          "kind": "already_normalized",
+          "reviewed": true
+        },
+        "cost_model_id": "SYNTHETIC_GROSS",
+        "cost_review_note": "合成毛收益，没有 BRAIN 成本假设",
+        "costs_reviewed": true,
+        "dataset_id": "SYNTHETIC_ONLY",
+        "excluded_intervals": [],
+        "is_interval": {
+          "end": "2021-12-07",
+          "start": "2020-01-02"
+        },
+        "is_reviewed": true,
+        "net_of_costs": false,
+        "pit_reviewed": true,
+        "population_id": "SYNTHETIC_ONLY",
+        "protocol": "verified-return-contract-v1",
+        "return_basis": "simple_return",
+        "review_note": "合成测试；没有金融含义",
+        "review_source_sha256": "8c75e9d6e273e499359f7534e1a50a982e1eab69a354870c5d0ef511ce4e7151",
+        "reviewed": true,
+        "sample_role": "research_is",
+        "scope": {
+          "delay": 1,
+          "region": "USA",
+          "universe": "SYNTHETIC_ONLY"
+        },
+        "source_id": "SYNTHETIC_GENERATOR",
+        "source_type": "independent_pit_panel",
+        "unit": "fraction",
+        "value_semantics": "daily_return"
+      }
+    },
+    {
+      "candidate_id": "SYNTHETIC_3",
+      "evidence": {
+        "candidate_id": "SYNTHETIC_3",
+        "status": "verified",
+        "input_sha256": "535357139feb9b5306dd70656cb3918235b6894ed614f6c49abc42e086dd505e",
+        "observations": 504,
+        "start_date": "2020-01-02",
+        "end_date": "2021-12-07",
+        "return_unit": "fraction",
+        "synthetic": true,
+        "contract_sha256": "b7fc15d933e3b3eb68ce58eaed4f13bc66e1dfcdd0b1ca40115b92aff229bbfe",
+        "empirical_evidence": false
+      },
+      "robustness": {
+        "candidate_id": "SYNTHETIC_3",
+        "input_sha256": "535357139feb9b5306dd70656cb3918235b6894ed614f6c49abc42e086dd505e",
+        "protocol_sha256": "872dd2ae61836c8956bc84d241d3bc0351a276075bb72d13888a969ce67dd9d4",
+        "synthetic": true,
+        "status": "computed",
+        "bootstrap": [
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 5,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.634713252075663,
+            "confidence_interval": [
+              -0.4661791906379782,
+              3.812599346929153
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "36a9d8b22204ec17ecc86fb5b53a844ce6ce20b2574ed7c126a0d412af08bf91",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 10,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.634713252075663,
+            "confidence_interval": [
+              -0.1130897144134902,
+              3.5356228223740955
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "94b571f5cd31f3fe94bd28434e782898d5e6e6c0734aed75b7aaaf9c080b036c",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          },
+          {
+            "method": "moving_block_percentile_v1",
+            "block_length": 20,
+            "seed": 20261020,
+            "replicates": 200,
+            "confidence": 0.95,
+            "observed_days": 504,
+            "sharpe": 1.634713252075663,
+            "confidence_interval": [
+              -0.5307716631198074,
+              3.270110679745396
+            ],
+            "annualization": 252,
+            "risk_free_return_per_day": 0,
+            "independent_observations_estimated": false,
+            "reasons": [],
+            "status": "computed",
+            "sample_sharpes_sha256": "6b6870e73cadb40537c10b2458f0840538671d80dbd3d92e4ea76f9bdb106dd6",
+            "notice": "依赖区块平稳性假设的历史诊断；置信区间不是未来业绩保证。"
+          }
+        ],
+        "fixed_windows": {
+          "method": "fixed_nonoverlapping_session_windows_v1",
+          "window_sessions": 126,
+          "minimum_windows": 4,
+          "annualization": 252,
+          "windows": [
+            {
+              "start_date": "2020-01-02",
+              "end_date": "2020-06-25",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 2.5129002604437694
+            },
+            {
+              "start_date": "2020-06-26",
+              "end_date": "2020-12-18",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.036536026303707
+            },
+            {
+              "start_date": "2020-12-21",
+              "end_date": "2021-06-14",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.257425004369084
+            },
+            {
+              "start_date": "2021-06-15",
+              "end_date": "2021-12-07",
+              "expected_observations": 126,
+              "observations": 126,
+              "coverage": 1.0,
+              "sharpe": 1.7247652903373014
+            }
+          ],
+          "complete": true,
+          "positive_fraction": 1.0,
+          "worst_window_sharpe": 1.036536026303707,
+          "reasons": [],
+          "not_brain_reported_sharpe": true,
+          "trailing_observations": 0,
+          "available_intervals": 504
+        },
+        "all_prespecified_blocks_reported": true,
+        "not_brain_metrics": true,
+        "submission_eligibility_changed": false
+      },
+      "dsr": {
+        "method": "deflated_sharpe_daily_v1",
+        "status": "unavailable",
+        "value": null,
+        "reasons": [
+          "complete_historical_attempts_not_audited"
+        ]
+      },
+      "cost_stress": {
+        "candidate_id": "SYNTHETIC_3",
+        "method": "incremental_cost_scenarios_v1",
+        "base_net_of_costs": false,
+        "base_cost_model_id": "SYNTHETIC_GROSS",
+        "hypothetical_scenarios": true,
+        "not_brain_reported_metrics": true,
+        "base_costs_subtracted_again": false,
+        "scenarios": [
+          {
+            "id": "illustrative_zero_increment",
+            "kind": "incremental_cost",
+            "bps": 0,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 1.634713252075663,
+              "mean_daily_return": 0.0007177676995518112
+            },
+            "return_sha256": "bc95804201f3cae339b8459e97dc92b2cdcef9943b6036134f4185bbad862165",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          },
+          {
+            "id": "illustrative_two_bps_increment",
+            "kind": "incremental_cost",
+            "bps": 2,
+            "status": "computed",
+            "net_return_metrics": {
+              "sharpe": 1.5527233866756591,
+              "mean_daily_return": 0.0006817676995518115
+            },
+            "return_sha256": "f5031f5d12709eee5f082412996a1f0d1f8a9c52d047de75231178074224e1fa",
+            "interpretation": "modeled_net_under_assumed_incremental_cost",
+            "reason": null
+          }
+        ],
+        "status": "computed",
+        "turnover_contract_sha256": "500061184d8cda3bb268c345d3afb729efc8201496bbb831ce1102804850bc65",
+        "reasons": []
+      },
+      "candidate_status": "research_candidate",
+      "ready_to_submit": false,
+      "return_contract": {
+        "calendar_id": "SYNTHETIC_WEEKDAYS_NOT_EXCHANGE_CALENDAR",
+        "calendar_sha256": "d0d9720c661389e72010d1660be09dc5625d31c7e4d627f50508eab305ed0b87",
+        "capital_basis": {
+          "kind": "already_normalized",
+          "reviewed": true
+        },
+        "cost_model_id": "SYNTHETIC_GROSS",
+        "cost_review_note": "合成毛收益，没有 BRAIN 成本假设",
+        "costs_reviewed": true,
+        "dataset_id": "SYNTHETIC_ONLY",
+        "excluded_intervals": [],
+        "is_interval": {
+          "end": "2021-12-07",
+          "start": "2020-01-02"
+        },
+        "is_reviewed": true,
+        "net_of_costs": false,
+        "pit_reviewed": true,
+        "population_id": "SYNTHETIC_ONLY",
+        "protocol": "verified-return-contract-v1",
+        "return_basis": "simple_return",
+        "review_note": "合成测试；没有金融含义",
+        "review_source_sha256": "8c75e9d6e273e499359f7534e1a50a982e1eab69a354870c5d0ef511ce4e7151",
+        "reviewed": true,
+        "sample_role": "research_is",
+        "scope": {
+          "delay": 1,
+          "region": "USA",
+          "universe": "SYNTHETIC_ONLY"
+        },
+        "source_id": "SYNTHETIC_GENERATOR",
+        "source_type": "independent_pit_panel",
+        "unit": "fraction",
+        "value_semantics": "daily_return"
+      }
+    }
+  ],
+  "pbo": {
+    "method": "cscv_sharpe_v1",
+    "status": "unavailable",
+    "value": null,
+    "reasons": [
+      "insufficient_candidates_minimum_eight"
+    ],
+    "candidates": 4
+  },
+  "parameter_plateaus": [
+    {
+      "family": "SYNTHETIC_EXAMPLE_NOT_A_STRATEGY",
+      "dimension": "hypothetical_window",
+      "candidate_ids": [
+        "SYNTHETIC_0",
+        "SYNTHETIC_1",
+        "SYNTHETIC_2"
+      ],
+      "parameter_values": [
+        5,
+        10,
+        20
+      ],
+      "baseline_id": "SYNTHETIC_1",
+      "median_sharpe": 1.1792139998534157,
+      "worst_sharpe": 0.9514643737422923,
+      "stable_fraction": 1.0,
+      "cost_tradeoff": {
+        "scenarios": [
+          {
+            "scenario_id": "illustrative_zero_increment",
+            "hypothetical": true,
+            "mean_daily_return_difference_from_baseline": {
+              "SYNTHETIC_0": -9.999999999999983e-05,
+              "SYNTHETIC_1": 0.0,
+              "SYNTHETIC_2": 0.00010000000000000037
+            }
+          },
+          {
+            "scenario_id": "illustrative_two_bps_increment",
+            "hypothetical": true,
+            "mean_daily_return_difference_from_baseline": {
+              "SYNTHETIC_0": -0.0001079999999999998,
+              "SYNTHETIC_1": 0.0,
+              "SYNTHETIC_2": 0.00010800000000000008
+            }
+          }
+        ],
+        "not_brain_reported_metrics": true
+      },
+      "status": "computed",
+      "scores": {
+        "SYNTHETIC_0": 0.9514643737422923,
+        "SYNTHETIC_1": 1.1792139998534157,
+        "SYNTHETIC_2": 1.40696362596454
+      },
+      "threshold": 0.9433711998827325,
+      "cost_tradeoff_reason": "see_separate_cost_contract_report",
+      "reasons": [],
+      "best_candidate_selected": false
+    }
+  ],
+  "synthetic": true,
+  "real_return_contracts_verified": false,
+  "network_requests": 0,
+  "simulation_posts": 0,
+  "submit_posts": 0,
+  "submission_enabled": false,
+  "database_mutated": false,
+  "final_holdout_accessed": false,
+  "feedback_to_agent": false,
+  "repeated_input_is_new_independent_evidence": false,
+  "notice": "离线诊断不更改固定评价器或提交资格；本地审核与冻结时间不构成平台认证。",
+  "run_id": null,
+  "trials": [],
+  "costs": null,
+  "budget": null,
+  "snapshot_sha256": null,
+  "source_review_verified": false,
+  "report_id": "51c8fe5eee932e1a1786555ad5cae912d176fc1f863826c931dedd8e1c3d5548",
+  "historical_submit_posts": null,
+  "source_review_reason": "no_engine_review_supplied"
+}

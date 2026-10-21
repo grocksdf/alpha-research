@@ -5,6 +5,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from . import __version__
 from .common import ResearchError,digest,research_context,snapshot
 from .scheduling import blocking_tasks
 from .validator import Validator
@@ -20,7 +21,7 @@ def research_candidates(config,agent,path=None):
     return json.loads((Path(config['root'])/'examples/baseline.json').read_text(encoding='utf-8'))
 
 
-def preview(config,candidates,*,plan=None,papers_path=None):
+def preview(config,candidates,*,plan=None,papers_path=None,lookup_study=True):
     """No Memory(), run creation, schema migration, credentials or HTTP calls."""
     validator=Validator(config['catalog_data'],config['scope'],config['rules'])
     expressions={}
@@ -31,7 +32,7 @@ def preview(config,candidates,*,plan=None,papers_path=None):
             for expression in variants:
                 valid=validator.validate(expression)
                 expressions.setdefault(valid.fingerprint,{'expression':expression,'fingerprint':valid.fingerprint})
-    data={'version':'0.4.2','operation':'directed-run' if plan else 'run','mode':config['mode'],'scope':config['scope'],
+    data={'version':__version__,'operation':'directed-run' if plan else 'run','mode':config['mode'],'scope':config['scope'],
         'snapshot_sha256':digest(snapshot(config)),'context':research_context(config),
         'input_sha256':digest(candidates),'papers_sha256':digest(Path(papers_path).read_text(encoding='utf-8')) if papers_path else None,
         'study_id':plan['study_id'] if plan else None,'plan_sha256':plan['plan_sha256'] if plan else None,
@@ -50,7 +51,7 @@ def preview(config,candidates,*,plan=None,papers_path=None):
             tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if not {'runs','trials','tasks'}<=tables:raise ResearchError('已有数据库 schema 无法核实，不能按空库估算')
             data['schema_migration_required']='remote_state' not in {r[1] for r in db.execute('PRAGMA table_info(tasks)')}
-            if plan and 'directed_studies' in tables:
+            if plan and lookup_study and 'directed_studies' in tables:
                 row=db.execute('SELECT * FROM directed_studies WHERE study_id=?',(plan['study_id'],)).fetchone()
                 if row:
                     if row['plan_hash']!=plan['plan_sha256']:raise ResearchError('study_id 已绑定不同计划')
@@ -108,7 +109,7 @@ def preview_resume(config,run_id,continue_research=True):
         own=[dict(r) for r in db.execute('''SELECT t.*,q.state,q.location FROM trials t
             JOIN tasks q ON q.trial_id=t.id WHERE t.run_id=? ORDER BY t.created,t.id''',(run_id,))]
         directed=db.execute('SELECT study_id FROM directed_studies WHERE run_id=?',(run_id,)).fetchone() if 'directed_studies' in tables else None
-        data={'version':'0.4.2','operation':'resume','continue_research':bool(continue_research),
+        data={'version':__version__,'operation':'resume','continue_research':bool(continue_research),
             'mode':config['mode'],'scope':config['scope'],'snapshot_sha256':digest(snapshot(config)),
             'context':research_context(config),'run_id':run_id,'study_id':directed[0] if directed else None,
             'simulation_budget':min(config['rules']['max_simulations_per_run'],6) if directed else config['rules']['max_simulations_per_run'],

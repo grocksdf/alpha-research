@@ -262,6 +262,7 @@ class BrainSimulator:
             result['evidence_errors']['pnl_changes']=str(error)
         from .pnl_evidence import reviewed_context,build_daily_evidence
         context=None
+        return_payload=None
         if result['pnl_isolation']['status']=='isolated':
             try:context=reviewed_context(self.config,detail,result['pnl_isolation'])
             except ApiError as error:result['evidence_errors']['pnl_changes']=str(error)
@@ -275,6 +276,7 @@ class BrainSimulator:
                 if name=='pnl':
                     if context is None and not audit:continue
                     payload=fetch(name)
+                    return_payload=payload
                     if audit:
                         from .evidence_audit import observe_pnl
                         result['pnl_observation']=observe_pnl(payload,context,result['pnl_isolation'])
@@ -303,6 +305,17 @@ class BrainSimulator:
         result['evidence_source']['normalized_is_pnl_sha256']=digest({'pnl':result['pnl_changes'],'returns':result['daily_returns'],'isolation':result['pnl_isolation']})
         from .checks import summarize_checks
         result['check_state']=summarize_checks(result['checks'],self.config['policy']['required_checks'])
+        from .return_contract import brain_return_document,review_return_document,EvidenceError
+        result['return_verification']={'status':'insufficient_evidence','reasons':['missing_pnl_payload'],
+                                       'performance_metrics_computed':False}
+        if return_payload is not None:
+            try:
+                document=brain_return_document(self.config,result,return_payload)
+                verified,review=review_return_document(document)
+                result['return_verification']=review
+                if verified is not None:result['verified_return_document']=document
+            except EvidenceError as error:
+                result['return_verification']['reasons']=[str(error)]
         # Deliberately discard os/test/train/prod/raw bodies. They never enter research memory.
         return result
 
