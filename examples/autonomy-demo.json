@@ -1,0 +1,11 @@
+{
+  "study_id": "discovery-demo-001",
+  "objective": "检验从假设、公式、规划、合成实验到反馈的闭环；不作为 AI 研究能力的证据",
+  "domains": ["price_volume", "fundamental", "microstructure", "sentiment"],
+  "max_simulations": 6,
+  "max_cycles": 3,
+  "max_ideas": 9,
+  "ideas_per_cycle": 2,
+  "generator": "demo",
+  "research_notes": "固定假设和合成指标仅用于运行演示。当前演示目录未提供基本面、微观结构和情绪字段。"
+}

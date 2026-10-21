@@ -1,0 +1,11 @@
+{
+  "study_id": "discovery-llm-001",
+  "objective": "在账户已授权且已审核的数据范围内，寻找收益机制不同、可证伪、值得进一步验证的 Alpha 假设",
+  "domains": ["price_volume", "fundamental", "microstructure", "sentiment"],
+  "max_simulations": 6,
+  "max_cycles": 3,
+  "max_ideas": 9,
+  "ideas_per_cycle": 3,
+  "generator": "llm",
+  "research_notes": "优先探索独立经济机制，失败后解释约束并改进或换方向；不得编造字段、论文或样本外证据。"
+}

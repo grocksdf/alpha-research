@@ -84,9 +84,12 @@ class Memory:
         CREATE TABLE IF NOT EXISTS directed_studies(
           study_id TEXT PRIMARY KEY,run_id TEXT UNIQUE NOT NULL REFERENCES runs(id),
           plan_hash TEXT NOT NULL,created TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS autonomous_studies(
+          study_id TEXT PRIMARY KEY,run_id TEXT UNIQUE NOT NULL REFERENCES runs(id),
+          plan_hash TEXT NOT NULL,created TEXT NOT NULL);
         """)
         self.migrate_tasks()
-        for table in ("trials", "results", "events", "candidate_promotions", "research_intents", "sensitivity_refs", "research_notes", "costs",'directed_studies'):
+        for table in ("trials", "results", "events", "candidate_promotions", "research_intents", "sensitivity_refs", "research_notes", "costs",'directed_studies','autonomous_studies'):
             for op in ("UPDATE", "DELETE"):
                 self.db.execute(f"CREATE TRIGGER IF NOT EXISTS immutable_{table}_{op} BEFORE {op} ON {table} BEGIN SELECT RAISE(ABORT, 'immutable research record'); END")
         self.migrate_intents()

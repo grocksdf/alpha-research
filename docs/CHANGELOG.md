@@ -1,10 +1,11 @@
-# V0.5.1 — Return contracts gate evaluation and final submission
+# V0.6.0 — Autonomous discovery MVP
 
-- Closed the v0.5.0 gap where incomplete return/cost semantics could pass legacy evaluation and submission gates.
-- Evaluation now requires a verified return summary and revalidated document, bound to the live Alpha, account, expression, settings, GET response hashes, IS calendar/capital and daily observations. Incomplete contracts retain eligible formulas for further research without stability scores.
-- Added a separate final submission check against freshly fetched evidence and the approved Alpha/current account/API, before reserving a submission or issuing POST. It remains effective with an evaluator or shortlist forced to pass.
-- Kept old result/snapshot/budget history and default closed safety switches; no new migration, Simulation budget, evolution executor or PBO policy changes.
-- 287 offline tests pass (270 retained, fixtures now explicitly declare valid test contracts, 17 new gate regressions). No real account reads, simulations, submissions or GitHub push.
+- Added one-model structured economic hypotheses and formulas, catalog-grounded research domains, deterministic planning and a bounded simulation/feedback/revision loop.
+- Added immutable plan/run binding, event checkpoints, parent hypothesis links, same-plan resumption, GET-only recovery and current-preview per-invocation approval. All deterministic sensitivity trials share the cap.
+- Reused discovery-only historical memory; model inputs exclude raw responses, normalized return documents, final holdouts and forward samples.
+- Added preliminary candidate reports using the existing fixed evaluator, with missing evidence and risks kept explicit. No automatic submit tool.
+- Restored the v0.5.1 requirements absent from the public v0.5.0 repository: evaluator and independent final submission revalidate the return document and bind it to approved Alpha/account/formula/settings/daily evidence.
+- 302 offline tests pass: all 270 baseline cases retained plus 32 new cases. Demo templates and synthetic simulations are labeled. No real model/account/market acceptance or GitHub push.
 
 # V0.5.0 — Verified returns and offline robust research
 

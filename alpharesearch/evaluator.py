@@ -6,7 +6,6 @@ import statistics
 
 from .brain import finite, pnl_isolation_valid
 from .pnl_evidence import stability_windows, daily_evidence_valid
-from .return_contract import EvidenceError, require_result_return_contract
 
 
 def aligned_correlation(left, right, min_overlap):
@@ -57,20 +56,13 @@ def evaluate(result, neighbors, policy, account_verified=False):
             reject.append("high_production_correlation")
     isolated=pnl_isolation_valid(result)
     live=result.get('mode')=='live' and not result.get('synthetic')
+    if live:
+        from .return_contract import submission_return_errors
+        missing.extend(submission_return_errors(result))
     if live and not isolated:missing.append('unverified_pnl_sample_isolation')
     reliable=daily_evidence_valid(result)
     if not reliable:missing.append('unverified_or_incomplete_daily_pnl')
-    try:
-        verified_returns=require_result_return_contract(result)
-        return_review=verified_returns.summary()
-    except EvidenceError as error:
-        missing.append('unverified_return_contract')
-        return_review={'status':'insufficient_evidence','reasons':[str(error)]}
-        previous=result.get('return_verification')
-        if isinstance(previous,dict) and isinstance(previous.get('reasons'),list):
-            return_review['reasons']+= [r for r in previous['reasons'] if isinstance(r,str) and r not in return_review['reasons']]
-    # Do not score cost/sample semantics that the new contract cannot establish.
-    stability=stability_windows(result if return_review['status']=='verified' else {},policy)
+    stability=stability_windows(result,policy)
     positive_fraction=stability['positive_fraction']
     if not stability['complete']:
         missing.extend(stability['reasons'])
@@ -97,7 +89,6 @@ def evaluate(result, neighbors, policy, account_verified=False):
     return {"status": "ready_for_human_review" if ready else "rejected" if reject else "evidence_incomplete",
             "ready": ready, "rejections": sorted(set(reject)), "missing": sorted(set(missing)),
             'check_state':check_summary,
-            'return_verification':return_review,
             'research_eligible':research_eligible,
             'research_status':'continue_research' if research_eligible and not ready else 'review_ready' if ready else 'rejected' if reject else 'needs_core_metrics',
             "positive_window_fraction": positive_fraction,

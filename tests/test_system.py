@@ -17,7 +17,7 @@ from functools import lru_cache
 from alpharesearch.agent import ResearchAgent, TOOLS
 from alpharesearch.brain import (BrainSimulator, DemoSimulator, correlation,
     normalize_checks, pnl_changes, records, yearly_stats)
-from alpharesearch.common import ResearchError, load_settings
+from alpharesearch.common import ResearchError, load_settings, digest
 from alpharesearch.engine import Engine
 from alpharesearch.evaluator import aligned_correlation, evaluate, shortlist
 from alpharesearch.http import AmbiguousWrite, ApiClient, ApiError, PollTimeout, Response, retry_seconds
@@ -66,38 +66,8 @@ def fixture_daily():
     return build_daily_evidence({'records':rows},context)
 
 
-@lru_cache(maxsize=1)
-def fixture_pnl_payload():
-    evidence=fixture_daily();days=evidence['daily_evidence']['session_dates']
-    total=0.;rows=[{'date':days[0],'pnl':0.}]
-    for left,right in zip(days,days[1:]):
-        total+=evidence['pnl_changes'][left+'/'+right];rows.append({'date':right,'pnl':total})
-    return {'records':rows}
-
-
-def attach_fixture_return_contract(value,payload=None):
-    """Explicit audited metadata for successful TEST ONLY fixtures; no HTTP."""
-    from alpharesearch.common import digest
-    from alpharesearch.return_contract import brain_return_document,verify_return_document
-    payload=fixture_pnl_payload() if payload is None else payload
-    value['evidence_source']={'transport':'account_http','alpha_id':value['alpha_id'],
-        'account_ref':digest('TEST_ONLY'),'api_base_url':'https://api.worldquantbrain.com',
-        'responses':{'pnl':{'method':'GET','payload_sha256':digest(payload)},
-                     'alpha':{'method':'GET','payload_sha256':digest({'TEST_ONLY':value['alpha_id'],
-                         'expression':value['expression'],'settings':value['settings']})}}}
-    config={'brain':{'pnl_evidence':{'reviewed':True,'review_note':'TEST ONLY synthetic cumulative cash',
-        'calendar_review_note':'TEST ONLY synthetic every-calendar-day sessions; not market data',
-        'costs_reviewed':True,'net_of_costs':False,'cost_model_id':'TEST_ONLY_GROSS',
-        'cost_review_note':'TEST ONLY explicit synthetic gross series'}}}
-    doc=brain_return_document(config,value,payload)
-    value['verified_return_document']=doc
-    value['return_verification']=verify_return_document(doc).summary()
-    return value
-
-
-def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None, alpha_id='alpha123'):
-    value={"mode": "live", "alpha_id": alpha_id, "expression": expression,
-        "settings": scope if scope is not None else {'region':'USA','universe':'TOP3000','delay':1},
+def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None):
+    result = {"mode": "live", "alpha_id": "alpha123", "expression": expression, "settings": scope or {"region":"USA","universe":"TOP3000","delay":1},
         "metrics": {"sharpe": 1.8, "fitness": 1.4, "turnover": 0.2},
         "checks": [{"name": k, "result": "PASS"} for k in
                    ("LOW_SHARPE", "LOW_FITNESS", "CONCENTRATED_WEIGHT",'SELF_CORRELATION')],
@@ -107,7 +77,28 @@ def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None, alpha_id=
         'pnl_isolation':{'status':'isolated','protocol':'server-is-date-bounds-v1','metadata_source':'alpha_detail.is',
             'start_date':'2020-01-01','end_date':'2022-12-31','contract_sha256':'a'*64},
         "evidence_errors": {}, "collected_at": "2026-10-20T00:00:00+00:00"}
-    return attach_fixture_return_contract(value)
+    return attach_return_contract(result)
+
+
+def attach_return_contract(result):
+    """TEST ONLY: explicit reviewed contract for scripted transport fixtures."""
+    from alpharesearch.return_contract import brain_return_document, review_return_document
+    proof = result["daily_evidence"]
+    total = 0.
+    rows = [{"date": proof["session_dates"][0], "pnl": 0.}]
+    for previous, day in zip(proof["session_dates"], proof["session_dates"][1:]):
+        total += result["pnl_changes"][previous+"/"+day]
+        rows.append({"date": day, "pnl": total})
+    payload = {"records": rows}
+    result["evidence_source"] = {"transport": "account_http", "account_ref": digest("TEST_ONLY"),
+        "responses": {"pnl": {"payload_sha256": digest(payload)}, "alpha": {"payload_sha256": digest("TEST detail")}}}
+    config = {"brain": {"pnl_evidence": {"reviewed": True, "review_note": "TEST ONLY synthetic transport",
+        "calendar_review_note": "TEST ONLY synthetic calendar", "costs_reviewed": True, "net_of_costs": False,
+        "cost_model_id": "TEST_GROSS", "cost_review_note": "TEST ONLY reviewed gross PnL"}}}
+    doc = brain_return_document(config, result, payload)
+    result["verified_return_document"] = doc
+    result["return_verification"] = review_return_document(doc)[1]
+    return result
 
 
 class ScriptedTransport:
@@ -153,7 +144,9 @@ class FixtureSimulator:
 
     def finish(self, location):
         expression, scope = self.expressions[location]
-        return fixture_result(expression, scope,alpha_id="alpha"+location.rsplit("s", 1)[1])
+        result = fixture_result(expression, scope)
+        result["alpha_id"] = "alpha"+location.rsplit("s", 1)[1]
+        return attach_return_contract(result)
 
     def collect(self, alpha_id):
         for location in self.expressions:

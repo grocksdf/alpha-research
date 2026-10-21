@@ -61,10 +61,23 @@ def credentials():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="AlphaResearch V0.5.1 收益契约双层提交门禁")
+    parser = argparse.ArgumentParser(description="AlphaResearch V0.6.0 自主 Alpha 发现 MVP")
     parser.add_argument("--config", default="config/settings.toml")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="离线配置检查；不登录")
+    autonomous_plan = sub.add_parser('autonomy-plan', help='冻结自主发现范围、总预算及模型调用上限；不联网')
+    autonomous_plan.add_argument('--spec', required=True)
+    autonomous_plan.add_argument('--output', required=True)
+    autonomous_run = sub.add_parser('autonomy-run', help='在本次确认预算内自主生成、规划、模拟、分析及改进；同计划断点续跑')
+    autonomous_run.add_argument('--plan', required=True)
+    autonomous_run.add_argument('--report', default='state/autonomy-review.json')
+    autonomous_run.add_argument('--dry-run', action='store_true')
+    autonomous_run.add_argument('--max-new-simulations', type=int)
+    autonomous_run.add_argument('--confirm-preview')
+    autonomous_run.add_argument('--steps', type=int, help='完成指定候选数后暂停；不重置总预算')
+    autonomous_recover = sub.add_parser('autonomy-recover', help='自主计划只读 GET 恢复；不调用模型、不新建模拟')
+    autonomous_recover.add_argument('--plan', required=True)
+    autonomous_recover.add_argument('--report', default='state/autonomy-review.json')
     sub.add_parser('migrate-state',help='离线迁移已有任务状态，保留快照、历史与预算，不访问网络')
     probe = sub.add_parser("probe-api", help="账户接口能力探测；默认只读取元数据")
     probe.add_argument("--one-simulation", action="store_true", help="明确创建一次真实单 Alpha 模拟")
@@ -179,6 +192,44 @@ def main(argv=None):
     engine = None
     try:
         config = load_settings(args.config)
+        if args.command == 'autonomy-plan':
+            from .autonomy import create_plan
+            from .probe import _write_fresh
+            value = create_plan(config, json.loads(Path(args.spec).read_text(encoding='utf-8')))
+            _write_fresh(args.output, value)
+            print_json({'output': args.output, 'plan_sha256': value['plan_sha256'], 'domain_coverage': value['domain_coverage']})
+            return
+        if args.command in ('autonomy-run', 'autonomy-recover'):
+            from .autonomy import preview_plan, execute_plan, recover_plan
+            plan = json.loads(Path(args.plan).read_text(encoding='utf-8'))
+            estimate = preview_plan(config, plan)
+            if args.command == 'autonomy-recover' and not estimate['run_id']:
+                raise ResearchError('计划尚未运行，无需恢复或登录')
+            if args.command == 'autonomy-run':
+                if args.steps is not None and args.steps < 1:
+                    raise ResearchError('steps 必须为正整数')
+                if args.dry_run:
+                    print_json(estimate); return
+                from .preview import confirm
+                confirm(config, estimate, args.max_new_simulations, args.confirm_preview)
+                if config['mode'] == 'live' and not config.get('safety', {}).get('live_research_enabled'):
+                    raise ResearchError('真实研究开关关闭；未登录')
+            with worker_lock(config['database']):
+                simulator = None
+                if config['mode'] == 'live':
+                    credentials(); simulator = BrainSimulator(config)
+                    identity = simulator.login()
+                    if identity['user_id'] != config['catalog_data'].get('account_id'):
+                        raise ResearchError('登录账户与字段目录不一致')
+                if args.command == 'autonomy-recover':
+                    print_json(recover_plan(config, plan, args.report, simulator))
+                else:
+                    value = execute_plan(config, plan, args.report, simulator, args.max_new_simulations,
+                                         args.confirm_preview, args.steps)
+                    print_json({'run_id': value['run_id'], 'state': value['state'],
+                                'counts': value['counts'], 'report': args.report,
+                                'shortlisted': len(value['shortlist'])})
+            return
         if args.command in ('analysis-freeze','verify-returns','attempt-history','robustness-audit','selection-bias-audit',
                             'research-report','evolution-plan','evolution-preview'):
             from .analysis_protocol import read_json,load_manifest,freeze_protocol

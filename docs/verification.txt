@@ -1,47 +1,29 @@
-AlphaResearch v0.5.1 verification
-Base: delivered v0.5.0 archive; original public repository commit 1eba5d8.
-Runtime tested locally: Linux, Python 3.12.14; standard library only.
+AlphaResearch v0.6.0 verification
+Base: public repository v0.5.0, e316f65. Prior v0.5.1 archive unavailable;
+its documented return-gate requirements were independently implemented here.
+Runtime: Linux, Python 3.11+ compatible standard-library implementation.
 
-Reproduced the v0.5.0 counterexample before editing: return_verification was
-insufficient_evidence for unknown cost semantics, but evaluate() returned ready
-with an empty missing list despite complete legacy PnL/stability/check evidence.
+Suite: 302/302 offline tests pass (270 retained, 32 added).
+Added coverage:
+- plan freezing, path-bound ledger identity, unknown permission rejection;
+- authorized/PIT/delay-reviewed field domains and invalid/future formulas;
+- deterministic affordability, structural novelty, formula reuse and lineage;
+- discovery feedback into subsequent generation, prior-run discovery memory,
+  raw/holdout/forward exclusion and strict single research_batch tool parsing;
+- real-model protocol exercised only with scripted responses; charged call and
+  usage records on success/error, no unintended simulation tool or retries;
+- same-study resume and non-resetting total budget, perturbations within cap;
+- per-invocation confirmation, stale preview, pre-login rejection, GET recovery,
+  interrupt checkpoints and generic-entry bypass rejection;
+- return-document revalidation and identity/data binding; final gate rejects
+  unknown/missing/corrupt/mismatched contracts even with forced ready reports,
+  with zero submission reservations and zero Submit requests in failure cases.
 
-Suite: 287/287 tests pass (270 retained, 17 new gate regressions).
-Successful synthetic fixtures now explicitly provide complete return contracts;
-previous window, correlation, budget, recovery and submission assertions remain.
+Release acceptance: clean archive tests and demo start/pause/resume/repeat;
+source hash inventory and limited credential-pattern scan; original v0.5.0
+SQLite historical rows/budgets preserved through additive table migration.
+No runtime databases, credentials, live configs or account captures in release.
 
-New regressions cover:
-- missing/null/wrong-type/nonverified summaries and fake verified-only labels;
-- missing or invalid documents, unknown costs/units/capital and calendar gaps;
-- stale summary hashes and Alpha/expression/settings/account/source conflicts;
-- valid standalone return documents with mismatched daily result values;
-- synthetic contracts forbidden as live submission evidence;
-- verified contracts cannot waive pending self-correlation;
-- valid full evidence retains the original evaluator and submission behavior;
-- freshly refreshed unknown-cost evidence blocks before submission reservation;
-- the final gate still rejects with evaluate() forced always-ready or an old
-  shortlist forced to pass; no HTTP request and no submissions table row;
-- wrong current account or approved Alpha, malformed summaries and raw cost
-  failure all independently block the final submit boundary;
-- the disabled switch blocks before collection or any submit request;
-- incomplete candidates remain available for further research without changing
-  old results or Simulation spending.
-
-Existing regressions include serialization, uncertain creation budget, resume
-preview confirmation, strict recordsets, holdout isolation, bootstrap/CSCV/DSR,
-cost scenarios, read-only histories, migration robustness and release integrity.
-
-Release validation:
-- source manifest, limited credential-pattern scan and clean ZIP extraction;
-- extracted-package tests and offline CLI; default safety switches false;
-- synthetic baseline/resume flow, no added real Simulations;
-- v0.5.0 patch forward/reverse and all source hashes verified;
-- existing v0.5.0 SQLite contents preserved; no new database migration.
-
-NOT executed: BRAIN authentication or real Alpha/Check/PnL requests, Phase C
-four-Alpha audit, real simulations, model inference, licensed market research,
-real submission, remote CI or GitHub push. Real calendar/capital/cost semantics
-and full account attempt history remain unverified. No budget/PBO threshold or
-evolution executor was added. Default live research and submission stay false.
-All HTTP tests, calendars and financial observations are synthetic fixtures.
-Local review metadata is not a platform-signed or tamper-resistant attestation.
+NOT executed: real model inference, BRAIN login/Alpha/PnL reads, real simulation,
+real submission, Phase C four-Alpha audit, market validation, remote CI or push.
+No claims of Alpha effectiveness, AI advantage, points or qualification.

@@ -8,7 +8,6 @@ from .brain import BrainSimulator, DemoSimulator, pnl_isolation_valid
 from .common import ResearchError, digest, now, snapshot, research_context
 from .evaluator import evaluate, shortlist
 from .pnl_evidence import daily_evidence_valid
-from .return_contract import EvidenceError, require_result_return_contract
 from .http import AmbiguousWrite, ApiError, PollTimeout
 from .memory import Memory
 from .validator import InvalidExpression, Validator
@@ -46,6 +45,9 @@ class Engine:
             self.run_id = run_id
         else:
             self.run_id = self.memory.create_run(self.snapshot)
+        row = self.memory.db.execute("SELECT payload FROM events WHERE run_id=? AND kind='autonomy_plan' ORDER BY id LIMIT 1", (self.run_id,)).fetchone()
+        if row:
+            self.simulation_limit = min(self.simulation_limit, json.loads(row[0])['max_simulations'])
 
     def execute(self, trial_id):
         trial = self.memory.trial(trial_id)
@@ -171,6 +173,8 @@ class Engine:
             raise
 
     def propose(self, expression, hypothesis, source, parent_id=None, parent_intent_id=None):
+        if self.memory.db.execute('SELECT 1 FROM autonomous_studies WHERE run_id=?', (self.run_id,)).fetchone():
+            raise ResearchError('自主研究必须通过冻结计划的生成器和规划器登记候选')
         if self.memory.db.execute('SELECT 1 FROM directed_studies WHERE run_id=?',(self.run_id,)).fetchone():
             raise ResearchError('定向研究已冻结六公式；不能通过 Agent 扩展')
         for name, value, maxlen in (("expression", expression, 5000), ("hypothesis", hypothesis, 4000), ("source", source, 2000)):
@@ -286,6 +290,8 @@ class Engine:
         return {'trial_id':trial_id,'intent_id':target,'state':'abandoned'}
 
     def resume(self,continue_research=False,max_new_simulations=None,confirm_preview=None):
+        if continue_research and self.memory.db.execute('SELECT 1 FROM autonomous_studies WHERE run_id=?', (self.run_id,)).fetchone():
+            raise ResearchError('自主计划继续研究须使用 autonomy-run 的当前预览确认')
         from .preview import preview_resume,confirm
         previous_limit=self.simulation_limit
         previous_allowlist=getattr(self,'_resume_creation_allowlist',None)
@@ -406,16 +412,12 @@ class Engine:
         refreshed = self.simulator.collect(approved_alpha_id)
         self.verify_result(self.memory.trial(trial_id), refreshed)
         self.memory.result(trial_id, refreshed)
+        from .return_contract import submission_return_errors
+        errors = submission_return_errors(refreshed, alpha_id=approved_alpha_id,
+            account_ref=digest(str(self.config['catalog_data'].get('account_id'))))
+        if errors:
+            raise ResearchError('最终收益契约复核未通过，未发送 Submit：'+','.join(errors))
         current = self.report()
-        # Independent of evaluate()/shortlist(): changing the evaluator cannot
-        # waive the return contract at the final irreversible-write boundary.
-        try:
-            account=self.config['catalog_data'].get('account_id')
-            if account is None:raise EvidenceError('return_contract_current_account_unknown')
-            require_result_return_contract(refreshed,expected_alpha_id=approved_alpha_id,
-                expected_account_ref=digest(str(account)),expected_api_base_url=self.config['brain']['base_url'])
-        except EvidenceError as error:
-            raise ResearchError('收益契约未通过最终复核，未发送提交请求：'+str(error)) from error
         if trial_id not in {x["trial_id"] for x in current["shortlist"]}:
             raise ResearchError("最新检查未通过或已从多样性候选池移除，未提交")
         self.memory.reserve_submission(trial_id, approved_alpha_id, supplied_hash)

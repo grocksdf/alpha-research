@@ -217,69 +217,6 @@ def aligned_series(series):
     return series
 
 
-def require_result_return_contract(result, *, expected_alpha_id=None,
-                                   expected_account_ref=None, expected_api_base_url=None):
-    """Recheck a live result, not just its stored 'verified' summary.
-
-    This pure guard is called separately by evaluation and final submission.
-    It neither fetches evidence nor changes historical records or permissions.
-    """
-    from .pnl_evidence import daily_evidence_valid
-    check(isinstance(result, dict), 'invalid_result_return_evidence')
-    summary=result.get('return_verification')
-    check(isinstance(summary, dict) and summary.get('status')=='verified'
-          and not summary.get('reasons'), 'return_verification_not_verified')
-    check(result.get('mode')=='live' and not result.get('synthetic'), 'live_return_evidence_required')
-    document=result.get('verified_return_document')
-    series=verify_return_document(document)
-    check(not series.synthetic, 'synthetic_return_contract_forbidden')
-    expected=series.summary()
-    check(all(summary.get(k)==v and type(summary.get(k)) is type(v) for k,v in expected.items()),
-          'return_verification_summary_mismatch')
-    contract=series.contract
-    alpha_id=result.get('alpha_id')
-    check(text_field(alpha_id) and series.candidate_id==alpha_id
-          and contract.get('source_type')=='brain_pnl' and contract.get('source_id')==alpha_id,
-          'return_contract_alpha_identity_mismatch')
-    if expected_alpha_id is not None:
-        check(alpha_id==expected_alpha_id, 'return_contract_approved_alpha_mismatch')
-    source=result.get('evidence_source')
-    check(isinstance(source,dict) and source.get('transport')=='account_http'
-          and source.get('alpha_id')==alpha_id and sha(source.get('account_ref'))
-          and source['account_ref']==contract.get('account_ref'), 'return_contract_account_source_mismatch')
-    if expected_account_ref is not None:
-        check(sha(expected_account_ref) and source['account_ref']==expected_account_ref,
-              'return_contract_current_account_mismatch')
-    if expected_api_base_url is not None:
-        check(source.get('api_base_url')==expected_api_base_url, 'return_contract_api_source_mismatch')
-    settings=result.get('settings')
-    check(isinstance(settings,dict) and contract.get('settings_sha256')==digest(settings)
-          and contract.get('expression_sha256')==digest(result.get('expression'))
-          and contract.get('scope')=={k:settings.get(k) for k in ('region','universe','delay')},
-          'return_contract_expression_or_settings_mismatch')
-    responses=source.get('responses')
-    check(isinstance(responses,dict) and all(isinstance(responses.get(k),dict) for k in ('alpha','pnl')),
-          'return_contract_response_provenance_missing')
-    check(all(responses[k].get('method')=='GET' and sha(responses[k].get('payload_sha256')) for k in ('alpha','pnl'))
-          and contract.get('review_source_sha256')==responses['pnl']['payload_sha256']
-          and contract['capital_basis'].get('source_sha256')==responses['alpha']['payload_sha256'],
-          'return_contract_response_hash_mismatch')
-    check(daily_evidence_valid(result), 'return_contract_daily_evidence_incomplete')
-    proof=result['daily_evidence'];isolation=result['pnl_isolation']
-    check(contract.get('value_semantics')=='cumulative_cash_pnl' and contract.get('return_basis')=='constant_capital'
-          and contract['capital_basis'].get('value')==proof['constant_capital']
-          and contract.get('unit')==proof['pnl_unit'] and contract['capital_basis'].get('unit')==proof['capital_unit'],
-          'return_contract_pnl_unit_or_capital_mismatch')
-    check(contract.get('is_interval')=={'start':isolation['start_date'],'end':isolation['end_date']}
-          and document['calendar']['sessions']==proof['session_dates']
-          and document['calendar'].get('source_file_sha256')==proof['calendar_sha256']
-          and series.dates==tuple(proof['session_dates'][1:]), 'return_contract_is_or_calendar_mismatch')
-    keys=[a+'/'+b for a,b in zip(proof['session_dates'],proof['session_dates'][1:])]
-    check(all(math.isclose(v,result['daily_returns'][k],rel_tol=1e-12,abs_tol=1e-15)
-              for k,v in zip(keys,series.returns)), 'return_contract_daily_values_mismatch')
-    return series
-
-
 def brain_return_document(config, result, payload):
     """Adapt audited, isolated BRAIN observations. Unknown costs remain unknown."""
     from .brain import records
@@ -314,3 +251,57 @@ def brain_return_document(config, result, payload):
         'coverage_end': proof['calendar_end'], 'source_file_sha256': proof['calendar_sha256']}
     return {'candidate_id': result['alpha_id'], 'contract': contract, 'calendar': calendar,
             'observations': rows, 'data_sha256': digest(rows), 'synthetic': False}
+
+
+def submission_return_errors(result, *, alpha_id=None, account_ref=None):
+    """Recompute stored evidence and bind it to this exact live Alpha.
+
+    A verified label alone is never a submission credential. The evaluator and
+    final write gate both call this, independently of the ranking decision.
+    """
+    if not isinstance(result, dict):
+        return ['invalid_return_result']
+    review = result.get('return_verification')
+    if not isinstance(review, dict) or review.get('status') != 'verified':
+        return ['unverified_return_contract']
+    try:
+        from .pnl_evidence import daily_evidence_valid
+        check(daily_evidence_valid(result), 'unverified_or_incomplete_daily_pnl')
+        series = verify_return_document(result.get('verified_return_document'))
+        c = series.contract
+        source = result.get('evidence_source')
+        proof = result.get('daily_evidence')
+        check(isinstance(source, dict) and isinstance(proof, dict), 'missing_return_binding')
+        check(result.get('mode') == 'live' and result.get('synthetic', False) is False
+              and series.synthetic is False and c['source_type'] == 'brain_pnl', 'nonlive_return_evidence')
+        expected = alpha_id if alpha_id is not None else result.get('alpha_id')
+        check(text_field(expected) and result.get('alpha_id') == expected
+              and series.candidate_id == expected and c['source_id'] == expected, 'return_alpha_binding_conflict')
+        check(source.get('transport') == 'account_http' and sha(source.get('account_ref'))
+              and c['account_ref'] == source['account_ref']
+              and (account_ref is None or account_ref == c['account_ref']), 'return_account_binding_conflict')
+        check(isinstance(result.get('settings'), dict) and isinstance(result.get('expression'), str)
+              and c['settings_sha256'] == digest(result['settings'])
+              and c['expression_sha256'] == digest(result['expression']), 'return_formula_settings_conflict')
+        check(c['scope'] == {k: result['settings'].get(k) for k in ('region', 'universe', 'delay')},
+              'return_scope_conflict')
+        check(c['is_interval'] == {'start': proof.get('start_date'), 'end': proof.get('end_date')},
+              'return_interval_conflict')
+        daily = result.get('daily_returns')
+        sessions = proof.get('session_dates', [])
+        keys = [a+'/'+b for a, b in zip(sessions, sessions[1:])]
+        check(isinstance(daily, dict) and sorted(daily) == keys and len(keys) == len(series.returns)
+              and all(number(daily[d]) and math.isclose(daily[d], v, rel_tol=1e-12, abs_tol=1e-15)
+                      for d, v in zip(keys, series.returns)), 'return_daily_values_conflict')
+        summary = series.summary()
+        check(all(review.get(k) == v for k, v in summary.items()), 'return_review_fingerprint_conflict')
+        document = result['verified_return_document']
+        check(document['calendar'].get('source_file_sha256') == proof.get('calendar_sha256')
+              and document['calendar']['sessions'] == proof.get('session_dates'), 'return_calendar_binding_conflict')
+        responses = source.get('responses', {})
+        check(c['review_source_sha256'] == responses.get('pnl', {}).get('payload_sha256')
+              and c['capital_basis'].get('source_sha256') == responses.get('alpha', {}).get('payload_sha256'),
+              'return_source_binding_conflict')
+        return []
+    except (EvidenceError, KeyError, TypeError, ValueError, AttributeError, OverflowError):
+        return ['invalid_or_unbound_return_contract']

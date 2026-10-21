@@ -6,7 +6,6 @@ from pathlib import Path
 
 from .analysis_protocol import bind_protocol, validate_protocol
 from .checks import summarize_checks
-from . import __version__
 from .common import digest
 from .cost_stress import cost_stress
 from .return_contract import EvidenceError, MANIFEST, check, review_return_document
@@ -67,7 +66,7 @@ def analyze_manifest(manifest, protocol):
     source=Path(__file__).parent
     code_sha=digest({name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in modules})
     identity = digest({'manifest': manifest, 'protocol': protocol, 'analysis_code_sha256':code_sha})
-    return {'version': __version__, 'mode': 'offline_research_diagnostics', 'study_id': protocol['study_id'],
+    return {'version': '0.5.0', 'mode': 'offline_research_diagnostics', 'study_id': protocol['study_id'],
             'analysis_id': identity, 'analysis_code_sha256':code_sha, 'algorithm_version':'robust-research-v1',
             'manifest_sha256': digest(manifest), 'protocol_sha256': protocol['protocol_sha256'],
             'status': 'computed' if len(verified) == len(protocol['candidate_universe']) else 'insufficient_evidence',

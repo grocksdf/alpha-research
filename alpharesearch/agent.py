@@ -95,6 +95,32 @@ class ResearchAgent:
             return {'notes':research.notes(engine),'families':research.families(engine)[:50]}
         raise ResearchError("未授权工具；模型不能修改评价器、访问文件或提交")
 
+    def complete(self, messages, tools):
+        """One charged model request; no simulation or submission permission."""
+        engine = self.engine
+        rules = engine.config["rules"]
+        engine.memory.consume(engine.run_id, "llm_calls", rules["max_llm_calls_per_run"])
+        started=time.monotonic()
+        try:
+            response = self.api.once("POST", self.api.base.rstrip("/")+"/chat/completions",
+                {"model": self.model, "messages": messages, "tools": tools, "tool_choice": "auto"},
+                {"Authorization": "Bearer "+self.key})
+        except ApiError:
+            engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,detail={'outcome':'transport_error'})
+            raise
+        usage=response.data.get('usage',{}) if isinstance(response.data,dict) else {}
+        usage=usage if isinstance(usage,dict) else {}
+        input_tokens=usage.get('prompt_tokens');output_tokens=usage.get('completion_tokens')
+        input_tokens=input_tokens if type(input_tokens)is int and input_tokens>=0 else None
+        output_tokens=output_tokens if type(output_tokens)is int and output_tokens>=0 else None
+        pricing=engine.config.get('cost',{});usd=None
+        if input_tokens is not None and output_tokens is not None and all(type(pricing.get(k)) in (int,float) and pricing[k]>=0 for k in ('input_per_million_usd','output_per_million_usd')):
+            usd=(input_tokens*pricing['input_per_million_usd']+output_tokens*pricing['output_per_million_usd'])/1e6
+        engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,input_tokens,output_tokens,usd,usd is not None,{'model':self.model,'http_status':response.status})
+        if response.status != 200:
+            raise ApiError(f"LLM API HTTP {response.status}，调用已记入预算", response.status)
+        return response
+
     def run(self, papers=""):
         engine, rules = self.engine, self.engine.config["rules"]
         papers = papers[:40000]
@@ -113,26 +139,7 @@ class ResearchAgent:
             run = engine.memory.run(engine.run_id)
             if run["simulations"] >= rules["max_simulations_per_run"] or run["proposals"] >= rules["max_proposals_per_run"] or run["llm_calls"] >= rules["max_llm_calls_per_run"]:
                 return {"stopped": "budget", "run_id": engine.run_id}
-            engine.memory.consume(engine.run_id, "llm_calls", rules["max_llm_calls_per_run"])
-            started=time.monotonic()
-            try:
-                response = self.api.once("POST", self.api.base.rstrip("/")+"/chat/completions",
-                    {"model": self.model, "messages": messages, "tools": TOOLS, "tool_choice": "auto"},
-                    {"Authorization": "Bearer "+self.key})
-            except ApiError:
-                engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,detail={'outcome':'transport_error'})
-                raise
-            usage=response.data.get('usage',{}) if isinstance(response.data,dict) else {}
-            usage=usage if isinstance(usage,dict) else {}
-            input_tokens=usage.get('prompt_tokens');output_tokens=usage.get('completion_tokens')
-            input_tokens=input_tokens if type(input_tokens)is int and input_tokens>=0 else None
-            output_tokens=output_tokens if type(output_tokens)is int and output_tokens>=0 else None
-            pricing=engine.config.get('cost',{});usd=None
-            if input_tokens is not None and output_tokens is not None and all(type(pricing.get(k)) in (int,float) and pricing[k]>=0 for k in ('input_per_million_usd','output_per_million_usd')):
-                usd=(input_tokens*pricing['input_per_million_usd']+output_tokens*pricing['output_per_million_usd'])/1e6
-            engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,input_tokens,output_tokens,usd,usd is not None,{'model':self.model,'http_status':response.status})
-            if response.status != 200:
-                raise ApiError(f"LLM API HTTP {response.status}，调用已记入预算", response.status)
+            response = self.complete(messages, TOOLS)
             try:
                 message = response.data["choices"][0]["message"]
                 calls = message.get("tool_calls", [])

@@ -1,20 +1,40 @@
-# AlphaResearch V0.5.1
+# AlphaResearch V0.6.0
 
-一个 Research Agent，四个确定性组件。基于仓库 v0.3.5 迭代，Python 3.11+，运行与测试均只依赖标准库。
+**AI Alpha Research Agent：自主研究 · 生成假设 · 发现新因子。**
 
-**本版补齐收益契约的评价与最终提交双层门禁。默认研究与提交开关继续关闭；未增加真实模拟预算。**
-287 项离线单元与回归测试通过（原 270 项，加 17 项门禁回归）。
-本次环境没有 BRAIN 凭据和四个已有 Alpha 的 ID，未登录、未读取真实证据、未创建模拟、未提交。
-仓库早期文档记载过账户探测；这些历史记述不等于本次验收，也不证明 PnL 语义或 Alpha 有效。
-随附 Demo 仍是合成数据；真实 AI 优势、独立市场验证、积分和资格均未证明。
+目标是形成“研究思路 → 合法公式 → 规划实验 → 模拟反馈 → 自主改进 → 候选评审”的闭环。
+一个研究 Agent 加确定性校验、执行、评价与记忆组件；Python 3.11+，核心只需标准库。
 
-## v0.5.1：收益契约必须阻止不完整证据提交
+本版新增：
 
-`evaluate()` 将未验证、缺失或不一致的收益契约加入 `missing`，不再标记 ready；公式仍可留在研究队列补证。
-`Engine.submit()` 在新的 GET 取证后独立复核契约、数据和当前账户/获批 ID，不依赖评价器是否放行。
-失败时既不预留提交意图，也不调用 Submit。仅有 `status=verified` 标签不足以替代完整文档和一致性复核。
-升级不改数据库、历史结果、预算或快照；旧版 ready 标签不能绕过新门禁。
-具体边界与回归证据见 [v0.5.1 操作说明](docs/v0.5.1-submission-contract.md)。
+- 结构化假设和公式生成，记录经济机制、符号、周期、证伪条件与父子谱系。
+- 基于已授权且已审核字段的四类研究方向：量价、基本面、微观结构和情绪；缺字段明确待补。
+- 确定性规划器：去重、结构多样性、相似度、复杂度和候选加扰动的模拟成本。
+- 受总预算和本次批准上限约束的自主循环，支持暂停、GET-only 恢复和同计划续跑。
+- 候选报告展示公式、实验依据、风险、相关性、敏感性与提交资格；正式 Submit 始终人工批准。
+- 补入 v0.5.1 要求的收益契约双重门禁，未验证文档或身份/数据不一致时拒绝提交。
+
+**302 项离线测试通过。真实模型、BRAIN、市场数据与发现能力尚未验收。**
+本次以公开仓库 v0.5.0 commit `e316f65` 为基线；未取得上一轮 v0.5.1 源码包，收益门禁按已确认要求重新补入。
+默认真实研究与提交开关仍关闭；演示固定假设与合成指标仅验证工程行为。
+
+```bash
+python -m alpharesearch doctor
+python -m unittest discover -s tests -v
+python -m alpharesearch autonomy-plan --spec examples/autonomy-demo.json --output state/discovery-plan.json
+python -m alpharesearch autonomy-run --plan state/discovery-plan.json --dry-run
+python -m alpharesearch autonomy-run --plan state/discovery-plan.json --max-new-simulations 3 --steps 1
+python -m alpharesearch autonomy-run --plan state/discovery-plan.json --max-new-simulations 3
+```
+
+同一计划最多 6 次合成模拟，含参数扰动，模型调用为 0；重复执行不会重置总预算。
+真实模型使用 `examples/autonomy-llm.json`，须先在本地配置模型和安全环境中的密钥。
+真实模拟须经账户验收、开关和当前预览哈希确认；没有新增自动提交能力。
+
+完整说明：[v0.6.0 自主发现、接入、恢复与路线](docs/v0.6.0-autonomous-discovery.md)。
+验收边界：[版本状态](docs/STATUS.md)。统计模块沿用 v0.5.0，不重复建设。
+
+以下保留历史版本的功能与操作说明；发生冲突时以 v0.6.0 说明及当前代码为准。
 
 ## v0.5.0：先核实收益，再做离线诊断
 
