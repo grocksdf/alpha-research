@@ -66,8 +66,38 @@ def fixture_daily():
     return build_daily_evidence({'records':rows},context)
 
 
-def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None):
-    return {"mode": "live", "alpha_id": "alpha123", "expression": expression, "settings": scope or {},
+@lru_cache(maxsize=1)
+def fixture_pnl_payload():
+    evidence=fixture_daily();days=evidence['daily_evidence']['session_dates']
+    total=0.;rows=[{'date':days[0],'pnl':0.}]
+    for left,right in zip(days,days[1:]):
+        total+=evidence['pnl_changes'][left+'/'+right];rows.append({'date':right,'pnl':total})
+    return {'records':rows}
+
+
+def attach_fixture_return_contract(value,payload=None):
+    """Explicit audited metadata for successful TEST ONLY fixtures; no HTTP."""
+    from alpharesearch.common import digest
+    from alpharesearch.return_contract import brain_return_document,verify_return_document
+    payload=fixture_pnl_payload() if payload is None else payload
+    value['evidence_source']={'transport':'account_http','alpha_id':value['alpha_id'],
+        'account_ref':digest('TEST_ONLY'),'api_base_url':'https://api.worldquantbrain.com',
+        'responses':{'pnl':{'method':'GET','payload_sha256':digest(payload)},
+                     'alpha':{'method':'GET','payload_sha256':digest({'TEST_ONLY':value['alpha_id'],
+                         'expression':value['expression'],'settings':value['settings']})}}}
+    config={'brain':{'pnl_evidence':{'reviewed':True,'review_note':'TEST ONLY synthetic cumulative cash',
+        'calendar_review_note':'TEST ONLY synthetic every-calendar-day sessions; not market data',
+        'costs_reviewed':True,'net_of_costs':False,'cost_model_id':'TEST_ONLY_GROSS',
+        'cost_review_note':'TEST ONLY explicit synthetic gross series'}}}
+    doc=brain_return_document(config,value,payload)
+    value['verified_return_document']=doc
+    value['return_verification']=verify_return_document(doc).summary()
+    return value
+
+
+def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None, alpha_id='alpha123'):
+    value={"mode": "live", "alpha_id": alpha_id, "expression": expression,
+        "settings": scope if scope is not None else {'region':'USA','universe':'TOP3000','delay':1},
         "metrics": {"sharpe": 1.8, "fitness": 1.4, "turnover": 0.2},
         "checks": [{"name": k, "result": "PASS"} for k in
                    ("LOW_SHARPE", "LOW_FITNESS", "CONCENTRATED_WEIGHT",'SELF_CORRELATION')],
@@ -77,6 +107,7 @@ def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None):
         'pnl_isolation':{'status':'isolated','protocol':'server-is-date-bounds-v1','metadata_source':'alpha_detail.is',
             'start_date':'2020-01-01','end_date':'2022-12-31','contract_sha256':'a'*64},
         "evidence_errors": {}, "collected_at": "2026-10-20T00:00:00+00:00"}
+    return attach_fixture_return_contract(value)
 
 
 class ScriptedTransport:
@@ -122,9 +153,7 @@ class FixtureSimulator:
 
     def finish(self, location):
         expression, scope = self.expressions[location]
-        result = fixture_result(expression, scope)
-        result["alpha_id"] = "alpha"+location.rsplit("s", 1)[1]
-        return result
+        return fixture_result(expression, scope,alpha_id="alpha"+location.rsplit("s", 1)[1])
 
     def collect(self, alpha_id):
         for location in self.expressions:

@@ -7,7 +7,7 @@ from datetime import date,timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from test_system import Base,ScriptedTransport,configure_pnl_contract,fixture_result
+from test_system import Base,ScriptedTransport,configure_pnl_contract,fixture_result,attach_fixture_return_contract
 from alpharesearch.brain import pnl_changes,discovery_isolation,BrainSimulator
 from alpharesearch.http import ApiError
 from alpharesearch.pnl_evidence import reviewed_context,build_daily_evidence,daily_differences,daily_evidence_valid,stability_windows
@@ -49,6 +49,10 @@ class ReliabilityTests(Base):
         rows.extend(extra)
         result=fixture_result();result['pnl_isolation']=isolation
         result.update(build_daily_evidence({'records':rows},context))
+        if daily_evidence_valid(result):attach_fixture_return_contract(result,{'records':rows})
+        else:
+            result.pop('verified_return_document',None)
+            result['return_verification']={'status':'insufficient_evidence','reasons':['TEST incomplete daily PnL']}
         return result,detail,rows
 
     def test_three_year_gap_is_quarantined_even_with_valid_is_bounds(self):

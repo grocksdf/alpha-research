@@ -8,6 +8,7 @@ from .brain import BrainSimulator, DemoSimulator, pnl_isolation_valid
 from .common import ResearchError, digest, now, snapshot, research_context
 from .evaluator import evaluate, shortlist
 from .pnl_evidence import daily_evidence_valid
+from .return_contract import EvidenceError, require_result_return_contract
 from .http import AmbiguousWrite, ApiError, PollTimeout
 from .memory import Memory
 from .validator import InvalidExpression, Validator
@@ -406,6 +407,15 @@ class Engine:
         self.verify_result(self.memory.trial(trial_id), refreshed)
         self.memory.result(trial_id, refreshed)
         current = self.report()
+        # Independent of evaluate()/shortlist(): changing the evaluator cannot
+        # waive the return contract at the final irreversible-write boundary.
+        try:
+            account=self.config['catalog_data'].get('account_id')
+            if account is None:raise EvidenceError('return_contract_current_account_unknown')
+            require_result_return_contract(refreshed,expected_alpha_id=approved_alpha_id,
+                expected_account_ref=digest(str(account)),expected_api_base_url=self.config['brain']['base_url'])
+        except EvidenceError as error:
+            raise ResearchError('收益契约未通过最终复核，未发送提交请求：'+str(error)) from error
         if trial_id not in {x["trial_id"] for x in current["shortlist"]}:
             raise ResearchError("最新检查未通过或已从多样性候选池移除，未提交")
         self.memory.reserve_submission(trial_id, approved_alpha_id, supplied_hash)

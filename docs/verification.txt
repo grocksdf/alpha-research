@@ -1,52 +1,47 @@
-AlphaResearch v0.5.0 verification
-Base: delivered v0.4.2 archive; original public repository commit 1eba5d8.
+AlphaResearch v0.5.1 verification
+Base: delivered v0.5.0 archive; original public repository commit 1eba5d8.
 Runtime tested locally: Linux, Python 3.12.14; standard library only.
 
-Suite: 270/270 tests pass (all original 212 retained, 58 new regressions).
-Coverage includes:
-- strict daily cash/cumulative cash/NAV/simple-return normalization, immutable
-  verified inputs, units/capital/cost/sample/calendar/identity rejection;
-- missing, duplicate, nonfinite, off-calendar and mixed-sample observations;
-- seeded moving-block sampling with within-block time ordering, all frozen
-  block lengths, anchored windows and complete prespecified neighborhoods;
-- all 70 CSCV half-block splits for an eight-block synthetic design, correct
-  constructed PBO=0 and PBO=1 rankings, ties and incomplete histories rejected;
-- DSR at its analytical null threshold gives 0.5, uses daily units, and refuses
-  unknown full-history variance, independent trial count or effective sample;
-- four-candidate PBO/DSR unavailable rather than fabricated low risk;
-- incremental cost scenarios, matched daily turnover and no repeat base fee;
-- read-only local attempt inventory retains failed/invalid/uncertain/reused
-  proposals and quarantines corrupt historical result containers;
-- all new analysis CLI avoid Engine, credentials, worker locks, HTTP and final
-  holdout computation; no DB creation/migration or existing history mutation;
-- existing-Alpha evidence export uses GET-only fixtures, records missing
-  contracts for all four requested IDs, creates no runs/simulations/submits;
-- frozen one-dimensional plans default to zero, reject budget expansion or
-  extra dimensions, reuse cached trials and show cross-run polling blockers;
-- reports preserve original evaluator and Check gates, reconcile identities,
-  reject tampered review hashes and retain failed/unfinished trial records;
-- v0.4.2 resume confirmations, per-call caps, uncertain POST accounting,
-  serialization, migration robustness, holdout isolation and release tests.
+Reproduced the v0.5.0 counterexample before editing: return_verification was
+insufficient_evidence for unknown cost semantics, but evaluate() returned ready
+with an empty missing list despite complete legacy PnL/stability/check evidence.
 
-Release checks:
-- clean archive extraction, complete source manifest and limited credential
-  pattern scan; runtime DBs, live configs and account captures excluded;
-- offline analysis/freeze/plan/preview/report CLI and synthetic baseline flow;
-- v0.4.2 incremental patch forward/reverse verification and source hashes;
-- no new database tables or migration: existing snapshots/results/budgets
-  remain unchanged by the new analysis layer.
+Suite: 287/287 tests pass (270 retained, 17 new gate regressions).
+Successful synthetic fixtures now explicitly provide complete return contracts;
+previous window, correlation, budget, recovery and submission assertions remain.
 
-No evolution-run executor was added. Planned limits are not creation approval.
-The original research/submission switches remain false. Historical submission
-POST counts are unknown; only this analysis invocation's count is zero.
+New regressions cover:
+- missing/null/wrong-type/nonverified summaries and fake verified-only labels;
+- missing or invalid documents, unknown costs/units/capital and calendar gaps;
+- stale summary hashes and Alpha/expression/settings/account/source conflicts;
+- valid standalone return documents with mismatched daily result values;
+- synthetic contracts forbidden as live submission evidence;
+- verified contracts cannot waive pending self-correlation;
+- valid full evidence retains the original evaluator and submission behavior;
+- freshly refreshed unknown-cost evidence blocks before submission reservation;
+- the final gate still rejects with evaluate() forced always-ready or an old
+  shortlist forced to pass; no HTTP request and no submissions table row;
+- wrong current account or approved Alpha, malformed summaries and raw cost
+  failure all independently block the final submit boundary;
+- the disabled switch blocks before collection or any submit request;
+- incomplete candidates remain available for further research without changing
+  old results or Simulation spending.
+
+Existing regressions include serialization, uncertain creation budget, resume
+preview confirmation, strict recordsets, holdout isolation, bootstrap/CSCV/DSR,
+cost scenarios, read-only histories, migration robustness and release integrity.
+
+Release validation:
+- source manifest, limited credential-pattern scan and clean ZIP extraction;
+- extracted-package tests and offline CLI; default safety switches false;
+- synthetic baseline/resume flow, no added real Simulations;
+- v0.5.0 patch forward/reverse and all source hashes verified;
+- existing v0.5.0 SQLite contents preserved; no new database migration.
 
 NOT executed: BRAIN authentication or real Alpha/Check/PnL requests, Phase C
 four-Alpha audit, real simulations, model inference, licensed market research,
-submission, remote CI or GitHub push. Actual units, calendars, cost semantics,
-IS dates and full account trial history remain unverified. Example returns,
-calendars and turnover are synthetic with no financial interpretation.
-
-Thresholds such as eight candidates/trials and 14-day calendar edge checks are
-conservative local protocol choices, not BRAIN rules or scientific guarantees.
-Local review flags, timestamps and hashes are not tamper-resistant attestations.
-PBO/DSR/Bootstrap diagnostics do not establish alpha discovery effectiveness.
+real submission, remote CI or GitHub push. Real calendar/capital/cost semantics
+and full account attempt history remain unverified. No budget/PBO threshold or
+evolution executor was added. Default live research and submission stay false.
+All HTTP tests, calendars and financial observations are synthetic fixtures.
+Local review metadata is not a platform-signed or tamper-resistant attestation.

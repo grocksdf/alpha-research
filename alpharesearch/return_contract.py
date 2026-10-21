@@ -217,6 +217,69 @@ def aligned_series(series):
     return series
 
 
+def require_result_return_contract(result, *, expected_alpha_id=None,
+                                   expected_account_ref=None, expected_api_base_url=None):
+    """Recheck a live result, not just its stored 'verified' summary.
+
+    This pure guard is called separately by evaluation and final submission.
+    It neither fetches evidence nor changes historical records or permissions.
+    """
+    from .pnl_evidence import daily_evidence_valid
+    check(isinstance(result, dict), 'invalid_result_return_evidence')
+    summary=result.get('return_verification')
+    check(isinstance(summary, dict) and summary.get('status')=='verified'
+          and not summary.get('reasons'), 'return_verification_not_verified')
+    check(result.get('mode')=='live' and not result.get('synthetic'), 'live_return_evidence_required')
+    document=result.get('verified_return_document')
+    series=verify_return_document(document)
+    check(not series.synthetic, 'synthetic_return_contract_forbidden')
+    expected=series.summary()
+    check(all(summary.get(k)==v and type(summary.get(k)) is type(v) for k,v in expected.items()),
+          'return_verification_summary_mismatch')
+    contract=series.contract
+    alpha_id=result.get('alpha_id')
+    check(text_field(alpha_id) and series.candidate_id==alpha_id
+          and contract.get('source_type')=='brain_pnl' and contract.get('source_id')==alpha_id,
+          'return_contract_alpha_identity_mismatch')
+    if expected_alpha_id is not None:
+        check(alpha_id==expected_alpha_id, 'return_contract_approved_alpha_mismatch')
+    source=result.get('evidence_source')
+    check(isinstance(source,dict) and source.get('transport')=='account_http'
+          and source.get('alpha_id')==alpha_id and sha(source.get('account_ref'))
+          and source['account_ref']==contract.get('account_ref'), 'return_contract_account_source_mismatch')
+    if expected_account_ref is not None:
+        check(sha(expected_account_ref) and source['account_ref']==expected_account_ref,
+              'return_contract_current_account_mismatch')
+    if expected_api_base_url is not None:
+        check(source.get('api_base_url')==expected_api_base_url, 'return_contract_api_source_mismatch')
+    settings=result.get('settings')
+    check(isinstance(settings,dict) and contract.get('settings_sha256')==digest(settings)
+          and contract.get('expression_sha256')==digest(result.get('expression'))
+          and contract.get('scope')=={k:settings.get(k) for k in ('region','universe','delay')},
+          'return_contract_expression_or_settings_mismatch')
+    responses=source.get('responses')
+    check(isinstance(responses,dict) and all(isinstance(responses.get(k),dict) for k in ('alpha','pnl')),
+          'return_contract_response_provenance_missing')
+    check(all(responses[k].get('method')=='GET' and sha(responses[k].get('payload_sha256')) for k in ('alpha','pnl'))
+          and contract.get('review_source_sha256')==responses['pnl']['payload_sha256']
+          and contract['capital_basis'].get('source_sha256')==responses['alpha']['payload_sha256'],
+          'return_contract_response_hash_mismatch')
+    check(daily_evidence_valid(result), 'return_contract_daily_evidence_incomplete')
+    proof=result['daily_evidence'];isolation=result['pnl_isolation']
+    check(contract.get('value_semantics')=='cumulative_cash_pnl' and contract.get('return_basis')=='constant_capital'
+          and contract['capital_basis'].get('value')==proof['constant_capital']
+          and contract.get('unit')==proof['pnl_unit'] and contract['capital_basis'].get('unit')==proof['capital_unit'],
+          'return_contract_pnl_unit_or_capital_mismatch')
+    check(contract.get('is_interval')=={'start':isolation['start_date'],'end':isolation['end_date']}
+          and document['calendar']['sessions']==proof['session_dates']
+          and document['calendar'].get('source_file_sha256')==proof['calendar_sha256']
+          and series.dates==tuple(proof['session_dates'][1:]), 'return_contract_is_or_calendar_mismatch')
+    keys=[a+'/'+b for a,b in zip(proof['session_dates'],proof['session_dates'][1:])]
+    check(all(math.isclose(v,result['daily_returns'][k],rel_tol=1e-12,abs_tol=1e-15)
+              for k,v in zip(keys,series.returns)), 'return_contract_daily_values_mismatch')
+    return series
+
+
 def brain_return_document(config, result, payload):
     """Adapt audited, isolated BRAIN observations. Unknown costs remain unknown."""
     from .brain import records

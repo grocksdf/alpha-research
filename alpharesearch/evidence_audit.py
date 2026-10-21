@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from .brain import exact_date, finite, records
+from . import __version__
 from .checks import summarize_checks
 from .common import ResearchError, digest, now
 from .http import ApiError
@@ -74,7 +75,7 @@ def audit_existing_alphas(simulator,manifest_path,output,returns_output=None):
         if Path(returns_output).exists():raise ResearchError('收益导出已存在；保留历史并指定新路径')
     returns_manifest={'format':'verified-returns-manifest-v1','series':[],
                       'network_requests':'GET_evidence_only_after_authentication','simulation_posts':0,'submit_posts':0}
-    report={'version':'0.5.0','mode':'existing_alphas_readonly_audit','state':'auditing','created_at':now(),
+    report={'version':__version__,'mode':'existing_alphas_readonly_audit','state':'auditing','created_at':now(),
         'account_ref':simulator.account_ref,'api_base_url':simulator.paths['base_url'],
         'manifest_sha256':digest(manifest),'simulation_created':False,'submission_requested':False,
         'alphas':[],'real_evidence_acceptance_completed':False}

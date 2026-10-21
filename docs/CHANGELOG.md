@@ -1,3 +1,11 @@
+# V0.5.1 — Return contracts gate evaluation and final submission
+
+- Closed the v0.5.0 gap where incomplete return/cost semantics could pass legacy evaluation and submission gates.
+- Evaluation now requires a verified return summary and revalidated document, bound to the live Alpha, account, expression, settings, GET response hashes, IS calendar/capital and daily observations. Incomplete contracts retain eligible formulas for further research without stability scores.
+- Added a separate final submission check against freshly fetched evidence and the approved Alpha/current account/API, before reserving a submission or issuing POST. It remains effective with an evaluator or shortlist forced to pass.
+- Kept old result/snapshot/budget history and default closed safety switches; no new migration, Simulation budget, evolution executor or PBO policy changes.
+- 287 offline tests pass (270 retained, fixtures now explicitly declare valid test contracts, 17 new gate regressions). No real account reads, simulations, submissions or GitHub push.
+
 # V0.5.0 — Verified returns and offline robust research
 
 - Added explicit cash-PnL/NAV/simple-return contracts, audited calendar/sample/cost semantics, and immutable normalized series. Existing-Alpha GET audits can export verified IS inputs; missing evidence stays explicit.
