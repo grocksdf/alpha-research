@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from .brain import BrainSimulator, DemoSimulator, pnl_isolation_valid
-from .common import ResearchError, digest, now, snapshot, research_context
+from .common import ResearchError, digest, now, snapshot, research_context, runtime_params
 from .evaluator import evaluate, shortlist
 from .pnl_evidence import daily_evidence_valid
 from .http import AmbiguousWrite, ApiError, PollTimeout
@@ -44,7 +44,7 @@ class Engine:
                 raise ResearchError("代码、目录或规则已变更；原实验不可悄悄更改，请创建新 run")
             self.run_id = run_id
         else:
-            self.run_id = self.memory.create_run(self.snapshot)
+            self.run_id = self.memory.create_run(self.snapshot, runtime_params(config))
         row = self.memory.db.execute("SELECT payload FROM events WHERE run_id=? AND kind='autonomy_plan' ORDER BY id LIMIT 1", (self.run_id,)).fetchone()
         if row:
             self.simulation_limit = min(self.simulation_limit, json.loads(row[0])['max_simulations'])

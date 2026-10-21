@@ -39,6 +39,33 @@ TOOLS += [
     tool('get_research_memory','Read structured notes and formula families; never final holdout evidence.',{},[])
 ]
 
+# 可经 [llm.extra_params] 透传给供应商的请求参数白名单；未列出的字段一律拒绝，
+# 防止配置夹带未审查参数（如覆盖工具面或注入指令）。
+EXTRA_PARAM_KEYS = ("thinking", "reasoning_effort", "temperature", "top_p", "max_tokens")
+
+
+def build_extra_params(settings):
+    """校验并返回 [llm.extra_params] 透传参数；空配置返回空字典。"""
+    extra = settings.get("extra_params") or {}
+    if not isinstance(extra, dict):
+        raise ResearchError("llm.extra_params 必须为参数表")
+    unsupported = sorted(set(extra) - set(EXTRA_PARAM_KEYS))
+    if unsupported:
+        raise ResearchError("llm.extra_params 含不支持的参数: " + ", ".join(unsupported))
+    if "thinking" in extra and not isinstance(extra["thinking"], (dict, str)):
+        raise ResearchError("llm.extra_params.thinking 必须为对象或字符串")
+    effort = extra.get("reasoning_effort")
+    if "reasoning_effort" in extra and (isinstance(effort, bool) or not isinstance(effort, (str, int, float))):
+        raise ResearchError("llm.extra_params.reasoning_effort 必须为字符串或数字")
+    for key in ("temperature", "top_p"):
+        value = extra.get(key)
+        if key in extra and (isinstance(value, bool) or not isinstance(value, (int, float))):
+            raise ResearchError("llm.extra_params." + key + " 必须为数字")
+    tokens = extra.get("max_tokens")
+    if "max_tokens" in extra and (isinstance(tokens, bool) or not isinstance(tokens, int) or tokens <= 0):
+        raise ResearchError("llm.extra_params.max_tokens 必须为正整数")
+    return dict(extra)
+
 
 class ResearchAgent:
     def __init__(self, engine, api=None):
@@ -51,6 +78,7 @@ class ResearchAgent:
             raise ResearchError("缺少环境变量 LLM_API_KEY")
         self.api = api or ApiClient(settings["base_url"], timeout=settings["timeout_seconds"])
         self.model = settings["model"]
+        self.extra_params = build_extra_params(settings)
 
     def dispatch(self, name, args):
         engine = self.engine
@@ -103,7 +131,7 @@ class ResearchAgent:
         started=time.monotonic()
         try:
             response = self.api.once("POST", self.api.base.rstrip("/")+"/chat/completions",
-                {"model": self.model, "messages": messages, "tools": tools, "tool_choice": "auto"},
+                {"model": self.model, "messages": messages, "tools": tools, "tool_choice": "auto", **self.extra_params},
                 {"Authorization": "Bearer "+self.key})
         except ApiError:
             engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,detail={'outcome':'transport_error'})

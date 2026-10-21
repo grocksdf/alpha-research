@@ -1,0 +1,11 @@
+{
+  "study_id": "autoresearch-001",
+  "objective": "在真实 BRAIN 数据上，基于已审核量价字段自主提出经济机制多样的 Alpha 假设，依据真实模拟结果与固定评价反馈进行有依据的迭代改进，产出可供人工审核的候选",
+  "domains": ["price_volume"],
+  "max_simulations": 4,
+  "max_cycles": 3,
+  "max_ideas": 4,
+  "ideas_per_cycle": 3,
+  "generator": "llm",
+  "research_notes": "只用已审核字段（close/open/high/low/volume/vwap/cap/returns/subindustry）与已审核算子。每个假设必须说明经济机制、预期方向、预测周期、证伪条件；优先提出不同机制家族，禁止只改窗口参数伪装创新。以下公式已在 phase-b 真实测试过，不得重复提交：rank(ts_delta(close,60)/ts_delay(close,60))、rank((vwap-close)/close)、-rank(ts_std_dev(returns,20))、-rank(ts_delta(close,5))。真实模拟指标才是证据；样本内高 Sharpe 不是市场有效性证明，不得追逐高 Sharpe。失败假设须保留失败原因并据此修订，修订时链接 parent。"
+}

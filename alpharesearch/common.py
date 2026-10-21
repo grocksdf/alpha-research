@@ -81,10 +81,31 @@ def snapshot(config):
     except (OSError, subprocess.CalledProcessError):
         commit = "uncommitted"
     # 不读取或保存环境变量或认证信息。
+    # llm 只冻结模型身份与研究相关参数；timeout 等运维参数经 runtime_params 单独审计（见 create_run）。
     return {"code": code, "git_commit": commit, "runtime": {"python": sys.version, "sqlite": sqlite3.sqlite_version}, "scope": config["scope"],
             "policy": config["policy"], "rules": config["rules"],
             "program_hash": digest(config["program_text"]), "catalog": config["catalog_data"],
             "brain": config["brain"], "mode": config["mode"],
             'safety':config.get('safety',{}),'research':config.get('research',{}),'cost':config.get('cost',{}),
             "account_profile_verified": config["account_profile_verified"],
-            "account_profile_note": config.get("account_profile_note", ""), "llm": config["llm"]}
+            "account_profile_note": config.get("account_profile_note", ""), "llm": llm_identity(config["llm"])}
+
+
+# [llm] 中的运维参数键：可经审计调整，不进入冻结计划快照。
+# 模型身份（base_url/model/extra_params）与研究规则保持冻结，防止偷偷更换模型或研究规则。
+LLM_RUNTIME_KEYS = ("timeout_seconds",)
+
+
+def llm_identity(llm):
+    """冻结进计划快照的模型身份与研究参数。"""
+    return {key: value for key, value in llm.items() if key not in LLM_RUNTIME_KEYS}
+
+
+def llm_runtime(llm):
+    """可经审计调整的运维参数（如超时）。"""
+    return {key: value for key, value in llm.items() if key in LLM_RUNTIME_KEYS}
+
+
+def runtime_params(config):
+    """运维参数快照：随运行记录并可审计调整，不影响冻结计划哈希。"""
+    return {"llm": llm_runtime(config["llm"])}

@@ -9,3 +9,4 @@ config/catalog.live.json
 config/live.toml
 config/phase-b.toml
 config/program-phase-b.md
+config/autoresearch.toml

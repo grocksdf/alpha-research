@@ -202,12 +202,19 @@ class Memory:
             previous = row["hash"]
         return {"events": self.db.execute("SELECT count(*) FROM events").fetchone()[0], "head": previous}
 
-    def create_run(self, snapshot):
+    def create_run(self, snapshot, runtime=None):
         run_id = uuid.uuid4().hex[:16]
         def work():
             self.db.execute("INSERT INTO runs(id,created,snapshot,snapshot_hash) VALUES(?,?,?,?)",
                             (run_id, now(), dumps(snapshot), digest(snapshot)))
             self.event(run_id, "run_created", snapshot)
+            if runtime is not None:
+                row = self.db.execute("SELECT payload FROM events WHERE kind='runtime_config' ORDER BY id DESC LIMIT 1").fetchone()
+                previous = json.loads(row[0])["runtime"] if row else None
+                self.event(run_id, "runtime_config", {
+                    "runtime": runtime, "previous_runtime": previous,
+                    "adjusted": bool(previous is not None and previous != runtime),
+                    "note": "运维参数（如超时）可审计调整；模型身份与研究规则仍由计划快照冻结"})
         self.transaction(work)
         return run_id
 
