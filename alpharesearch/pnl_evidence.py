@@ -90,7 +90,9 @@ def reviewed_context(config,detail,bounds):
         'pnl_unit':unit,'capital_unit':unit,
         'calendar_id':contract['calendar_id'],'calendar_sha256':fingerprint,'calendar_region':contract['calendar_region'],
         'calendar_source':contract['calendar_source'],'calendar_start':lower,'calendar_end':upper,
-        'start_date':start,'end_date':end,'session_dates':sessions,'constant_capital':capital,'capital_path':path}
+        'start_date':start,'end_date':end,'session_dates':sessions,'constant_capital':capital,'capital_path':path,
+        'review_note':contract['review_note'],'calendar_review_note':contract['calendar_review_note'],
+        **{k:contract.get(k) for k in ('costs_reviewed','net_of_costs','cost_model_id','cost_review_note')}}
 
 
 def daily_differences(payload,sessions,start=None,end=None):
@@ -166,7 +168,7 @@ def daily_evidence_valid(result):
     return True
 
 
-def stability_windows(result,policy):
+def stability_windows(result,policy, *, config=None):
     """Anchor at the first IS session; do not shift windows to avoid bad dates."""
     length=policy.get('stability_window_sessions');minimum=policy.get('min_stability_windows')
     annual=policy.get('stability_annualization')
@@ -175,7 +177,11 @@ def stability_windows(result,policy):
     result_base={'method':'fixed_nonoverlapping_session_windows_v1','window_sessions':length,'minimum_windows':minimum,
                  'annualization':annual,'windows':[],'complete':False,'positive_fraction':None,'worst_window_sharpe':None,
                  'reasons':[],'not_brain_reported_sharpe':True}
-    if not daily_evidence_valid(result):
+    from .return_contract import EvidenceError, require_result_return_contract
+    contract_errors=[]
+    try:require_result_return_contract(result, config=config)
+    except EvidenceError as error:contract_errors=[str(error)]
+    if contract_errors or not daily_evidence_valid(result):
         # Coverage diagnostics keep the same anchored blocks even when evidence
         # is incomplete. They never supply performance scores or skip bad blocks.
         proof=result.get('daily_evidence',{})
@@ -187,7 +193,7 @@ def stability_windows(result,policy):
                 block=keys[start:start+length];count=sum(k in changes for k in block)
                 result_base['windows'].append({'start_date':block[0].split('/')[0],'end_date':block[-1].split('/')[1],
                     'expected_observations':length,'observations':count,'coverage':count/length,'sharpe':None})
-        result_base['reasons']=['unverified_or_incomplete_daily_pnl'];return result_base
+        result_base['reasons']=contract_errors or ['unverified_or_incomplete_daily_pnl'];return result_base
     sessions=result['daily_evidence']['session_dates'];keys=[a+'/'+b for a,b in zip(sessions,sessions[1:])]
     return fixed_window_diagnostics(keys,[result['daily_returns'][k] for k in keys],policy)
 

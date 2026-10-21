@@ -273,7 +273,7 @@ def inspect_alpha_evidence(simulator,smoke_path,output):
         'observation_source':'account_http' if observed else 'scripted_or_unknown_transport',
         'source':result.get('evidence_source',{}),'pnl_isolation':result['pnl_isolation'],
         'daily_evidence':result['daily_evidence'],'daily_evidence_complete':daily_evidence_valid(result),
-        'stability':stability_windows(result,config['policy']),'evidence_errors':result['evidence_errors'],
+        'stability':stability_windows(result,config['policy'],config=config),'evidence_errors':result['evidence_errors'],
         'evidence_sha256':digest({'pnl':result['pnl_changes'],'returns':result['daily_returns'],'isolation':result['pnl_isolation'],'daily':result['daily_evidence']}),
         'real_account_acceptance_completed':bool(observed and parsed and daily_evidence_valid(result)),
         'submission_enabled_by_probe':False,'notice':'本机对账记录不是授权证明，也不证明因子经济有效或可提交'}

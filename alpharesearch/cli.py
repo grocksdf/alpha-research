@@ -61,7 +61,7 @@ def credentials():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="AlphaResearch V0.6.0 自主 Alpha 发现 MVP")
+    parser = argparse.ArgumentParser(description="AlphaResearch V0.6.1 自主研究与完整收益契约门禁")
     parser.add_argument("--config", default="config/settings.toml")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="离线配置检查；不登录")

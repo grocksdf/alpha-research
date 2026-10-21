@@ -1,29 +1,29 @@
-AlphaResearch v0.6.0 verification
-Base: public repository v0.5.0, e316f65. Prior v0.5.1 archive unavailable;
-its documented return-gate requirements were independently implemented here.
-Runtime: Linux, Python 3.11+ compatible standard-library implementation.
+AlphaResearch v0.6.1 verification
+Base: the delivered AlphaResearch-v0.6.0.zip, SHA256
+  a7b80a1a5f954123f5c2606f9a8a4f4b4262a4194a49126858f503ddcd9b8236
 
-Suite: 302/302 offline tests pass (270 retained, 32 added).
-Added coverage:
-- plan freezing, path-bound ledger identity, unknown permission rejection;
-- authorized/PIT/delay-reviewed field domains and invalid/future formulas;
-- deterministic affordability, structural novelty, formula reuse and lineage;
-- discovery feedback into subsequent generation, prior-run discovery memory,
-  raw/holdout/forward exclusion and strict single research_batch tool parsing;
-- real-model protocol exercised only with scripted responses; charged call and
-  usage records on success/error, no unintended simulation tool or retries;
-- same-study resume and non-resetting total budget, perturbations within cap;
-- per-invocation confirmation, stale preview, pre-login rejection, GET recovery,
-  interrupt checkpoints and generic-entry bypass rejection;
-- return-document revalidation and identity/data binding; final gate rejects
-  unknown/missing/corrupt/mismatched contracts even with forced ready reports,
-  with zero submission reservations and zero Submit requests in failure cases.
+329 offline tests: all 302 v0.6.0 test identities retained, plus 17 reconstructed
+contract categories and 10 final-submit/statistics regressions. The original
+v0.5.1 17-test source was unavailable; no verbatim restoration is claimed.
+The independent fixture manually constructs provenance, PnL proof, return
+contract and summary rather than using the production adapter/builders.
 
-Release acceptance: clean archive tests and demo start/pause/resume/repeat;
-source hash inventory and limited credential-pattern scan; original v0.5.0
-SQLite historical rows/budgets preserved through additive table migration.
-No runtime databases, credentials, live configs or account captures in release.
+Reproduced v0.6.0: POST receipt, API mismatch, source Alpha mismatch, rehashed
+USD->EUR document and verified-with-reasons all passed; insufficient contract
+still produced a numeric worst-window Sharpe. These are synthetic counterexamples.
 
-NOT executed: real model inference, BRAIN login/Alpha/PnL reads, real simulation,
-real submission, Phase C four-Alpha audit, market validation, remote CI or push.
-No claims of Alpha effectiveness, AI advantage, points or qualification.
+Fixed gate binds accounts/API/GET/endpoints/Alpha/formula/settings/currency/
+capital/costs/IS/calendars/dates/daily values/audit hashes/summary/reasons, with
+current host context at evaluator and final Submit. No scores are computed on
+unverified contracts. Compatibility wrapper cannot replace the final gate.
+
+17 final-submit anomaly cases: zero mock Submit calls and zero reservations;
+valid evidence then submits once through the local mock. No network involved.
+Original autonomy.py, discovery.py and 29 autonomy tests match v0.6.0 bytes.
+Release acceptance covers clean extraction, full tests, 3->6->6 synthetic
+same-plan budgets, GET recovery with zero new simulations, unchanged historical
+SQLite rows/budgets, manifest/credential scan, and forward/reverse patch checks.
+
+NOT executed: real model inference, BRAIN login or evidence reads, real
+Simulation/Submit, market validation, remote CI, GitHub push. Defaults remain
+closed. Test fixtures are not evidence of Alpha effectiveness or API acceptance.

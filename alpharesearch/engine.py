@@ -264,7 +264,7 @@ class Engine:
         return result
 
     def evaluate_trial(self, trial_id):
-        return evaluate(self.memory.latest(trial_id) or {}, self.neighbors_for(trial_id), self.config["policy"], self.config["account_profile_verified"])
+        return evaluate(self.memory.latest(trial_id) or {}, self.neighbors_for(trial_id), self.config["policy"], self.config["account_profile_verified"], config=self.config)
 
     def refresh_evidence(self,trial_id):
         if self.config['mode']!='live':raise ResearchError('refresh-evidence 只读取真实 Alpha，不运行新模拟')
@@ -412,11 +412,17 @@ class Engine:
         refreshed = self.simulator.collect(approved_alpha_id)
         self.verify_result(self.memory.trial(trial_id), refreshed)
         self.memory.result(trial_id, refreshed)
-        from .return_contract import submission_return_errors
-        errors = submission_return_errors(refreshed, alpha_id=approved_alpha_id,
-            account_ref=digest(str(self.config['catalog_data'].get('account_id'))))
-        if errors:
-            raise ResearchError('最终收益契约复核未通过，未发送 Submit：'+','.join(errors))
+        from .return_contract import require_result_return_contract, EvidenceError
+        expected_account=digest(str(self.config['catalog_data'].get('account_id')))
+        authenticated_account=getattr(self.simulator,'account_ref',None)
+        if ((isinstance(self.simulator,BrainSimulator) and not authenticated_account)
+                or (authenticated_account is not None and authenticated_account!=expected_account)):
+            raise ResearchError('当前登录账户与研究目录不一致，未发送 Submit')
+        try:
+            require_result_return_contract(refreshed, alpha_id=approved_alpha_id,
+                account_ref=expected_account, api_base_url=self.config['brain']['base_url'], config=self.config)
+        except EvidenceError as error:
+            raise ResearchError('最终收益契约复核未通过，未发送 Submit：'+str(error)) from error
         current = self.report()
         if trial_id not in {x["trial_id"] for x in current["shortlist"]}:
             raise ResearchError("最新检查未通过或已从多样性候选池移除，未提交")

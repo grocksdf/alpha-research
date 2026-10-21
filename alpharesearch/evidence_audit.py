@@ -96,7 +96,7 @@ def audit_existing_alphas(simulator,manifest_path,output,returns_output=None):
                 pnl_isolation=value.get('pnl_isolation'),daily_evidence=value.get('daily_evidence'),
                 daily_evidence_complete=daily,evidence_errors=value.get('evidence_errors'),
                 return_verification=value.get('return_verification',{'status':'insufficient_evidence','reasons':['missing_reviewed_return_contract']}),
-                stability=stability_windows(value if reconciled and value.get('return_verification',{}).get('status')=='verified' else {},simulator.config['policy']),
+                stability=stability_windows(value if reconciled and value.get('return_verification',{}).get('status')=='verified' else {},simulator.config['policy'],config=simulator.config),
                 # This audit has no sensitivity or independent validation gate.
                 ready_to_submit=False)
             document=value.get('verified_return_document') if reconciled else None

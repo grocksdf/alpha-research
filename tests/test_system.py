@@ -45,9 +45,27 @@ def configure_pnl_contract(config,root,sessions=None):
         'calendar_reviewed':True,'calendar_id':'TEST-sessions','calendar_source':'TEST fixture, not exchange data',
         'calendar_review_note':'TEST every supplied date is a session','calendar_region':config['scope']['region'],
         'calendar_start':sessions[0],'calendar_end':sessions[-1],'calendar_file':str(path),
-        'calendar_sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+        'calendar_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
+        'costs_reviewed':True,'net_of_costs':False,'cost_model_id':'TEST_GROSS',
+        'cost_review_note':'TEST ONLY reviewed gross PnL'}
     config['brain']['pnl_evidence']=contract
     return contract
+
+
+def fixture_discovery_contract():
+    return {'schema_reviewed':True,'review_note':'TEST ONLY precise synthetic dates',
+        'date_semantics':'inclusive_dates','is_start_path':['is','startDate'],'is_end_path':['is','endDate']}
+
+
+def fixture_pnl_contract():
+    return {'reviewed':True,'review_note':'TEST ONLY synthetic transport',
+        'value_semantics':'cumulative_cash_pnl_constant_capital_session_close',
+        'pnl_unit':'USD','capital_unit':'USD','capital_path':['is','bookSize'],
+        'calendar_reviewed':True,'calendar_id':'TEST-calendar','calendar_source':'TEST ONLY',
+        'calendar_review_note':'TEST ONLY synthetic calendar','calendar_region':'USA',
+        'calendar_start':'2020-01-01','calendar_end':'2022-12-31',
+        'calendar_file':'TEST_ONLY_NO_REAL_CALENDAR.csv','calendar_sha256':'c'*64,
+        'costs_reviewed':True,'net_of_costs':False,'cost_model_id':'TEST_GROSS','cost_review_note':'TEST ONLY reviewed gross PnL'}
 
 
 @lru_cache(maxsize=1)
@@ -60,9 +78,10 @@ def fixture_daily():
         rows.append({'date':d,'pnl':cumulative})
     context={'protocol':'brain-session-pnl-v1','value_semantics':'cumulative_cash_pnl_constant_capital_session_close',
         'pnl_unit':'USD','capital_unit':'USD',
-        'contract_sha256':'b'*64,'calendar_id':'TEST-calendar','calendar_sha256':'c'*64,'calendar_region':'USA',
+        'contract_sha256':digest(fixture_pnl_contract()),'calendar_id':'TEST-calendar','calendar_sha256':'c'*64,'calendar_region':'USA',
         'calendar_source':'TEST ONLY','calendar_start':sessions[0],'calendar_end':sessions[-1],
-        'start_date':sessions[0],'end_date':sessions[-1],'session_dates':sessions,'constant_capital':100.,'capital_path':['is','bookSize']}
+        'start_date':sessions[0],'end_date':sessions[-1],'session_dates':sessions,'constant_capital':100.,'capital_path':['is','bookSize'],
+        **{k:fixture_pnl_contract()[k] for k in ('review_note','calendar_review_note','costs_reviewed','net_of_costs','cost_model_id','cost_review_note')}}
     return build_daily_evidence({'records':rows},context)
 
 
@@ -75,7 +94,8 @@ def fixture_result(expression="-rank(ts_delta(close, 5))", scope=None):
         "self_correlation": 0.25, "production_correlation": None,
         **copy.deepcopy(fixture_daily()),
         'pnl_isolation':{'status':'isolated','protocol':'server-is-date-bounds-v1','metadata_source':'alpha_detail.is',
-            'start_date':'2020-01-01','end_date':'2022-12-31','contract_sha256':'a'*64},
+            'start_date':'2020-01-01','end_date':'2022-12-31','contract_sha256':digest(fixture_discovery_contract()),
+            'start_path':['is','startDate'],'end_path':['is','endDate']},
         "evidence_errors": {}, "collected_at": "2026-10-20T00:00:00+00:00"}
     return attach_return_contract(result)
 
@@ -90,11 +110,17 @@ def attach_return_contract(result):
         total += result["pnl_changes"][previous+"/"+day]
         rows.append({"date": day, "pnl": total})
     payload = {"records": rows}
+    aid=result['alpha_id']; alpha_path='/alphas/'+aid; pnl_path=alpha_path+'/recordsets/pnl'
     result["evidence_source"] = {"transport": "account_http", "account_ref": digest("TEST_ONLY"),
-        "responses": {"pnl": {"payload_sha256": digest(payload)}, "alpha": {"payload_sha256": digest("TEST detail")}}}
-    config = {"brain": {"pnl_evidence": {"reviewed": True, "review_note": "TEST ONLY synthetic transport",
-        "calendar_review_note": "TEST ONLY synthetic calendar", "costs_reviewed": True, "net_of_costs": False,
-        "cost_model_id": "TEST_GROSS", "cost_review_note": "TEST ONLY reviewed gross PnL"}}}
+        'api_base_url':'https://api.worldquantbrain.com','alpha_id':aid,'detail_path':alpha_path,'pnl_path':pnl_path,
+        'pnl_contract_sha256':proof['contract_sha256'],'discovery_contract_sha256':result['pnl_isolation']['contract_sha256'],
+        'calendar_sha256':proof['calendar_sha256'],
+        'detail_reconciliation_sha256':digest({'id':aid,'expression':result['expression'],'settings':result['settings'],'metrics':result['metrics']}),
+        'normalized_is_pnl_sha256':digest({'pnl':result['pnl_changes'],'returns':result['daily_returns'],'isolation':result['pnl_isolation']}),
+        "responses": {"pnl": {'method':'GET','path':pnl_path,'observed_at':result['collected_at'],"payload_sha256": digest(payload)},
+                      "alpha": {'method':'GET','path':alpha_path,'observed_at':result['collected_at'],"payload_sha256": digest("TEST detail")}}}
+    config = {'brain':{'pnl_evidence':{'reviewed':True,**{k:proof[k] for k in
+        ('review_note','calendar_review_note','costs_reviewed','net_of_costs','cost_model_id','cost_review_note')}}}}
     doc = brain_return_document(config, result, payload)
     result["verified_return_document"] = doc
     result["return_verification"] = review_return_document(doc)[1]
@@ -176,6 +202,9 @@ class Base(unittest.TestCase):
         self.config["account_profile_verified"] = True
         self.config["catalog_data"]["source"] = "brain-account-api"
         self.config["catalog_data"]["account_id"] = "TEST_ONLY"
+        # Explicit synthetic reviews for scripted live adapters; never production defaults.
+        self.config['brain']['pnl_evidence']=fixture_pnl_contract()
+        self.config['brain']['discovery_evidence']=fixture_discovery_contract()
         return self.config
 
 

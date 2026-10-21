@@ -1,3 +1,12 @@
+# V0.6.1 — Complete return-contract gate regression fix
+
+- Replaced partial validation with a single require_result_return_contract implementation called independently by evaluator, stability diagnostics and final Engine.submit.
+- Bound GET receipts, APIs/endpoints/Alpha/account IDs, currency/capital/cost semantics, IS/calendar/dates/daily returns, provenance hashes, summary fields and current reviewed configuration. Unresolved reasons cannot accompany verified status.
+- Refused to compute window performance scores without a valid contract; coverage diagnostics remain available.
+- Retained all 302 v0.6.0 test identities; added 17 reconstructed contract categories and 10 regressions. The original v0.5.1 test file was unavailable and is not claimed to be restored verbatim.
+- Tested 17 invalid final-submit scenarios with zero mock Submit calls and zero submission reservations, including forced-ready/compatibility-wrapper bypass. Verified a valid one-submit positive case.
+- Kept autonomy.py, discovery.py and all 29 autonomous-research tests byte-for-byte unchanged. No real account/model/network operations, submissions or push.
+
 # V0.6.0 — Autonomous discovery MVP
 
 - Added one-model structured economic hypotheses and formulas, catalog-grounded research domains, deterministic planning and a bounded simulation/feedback/revision loop.

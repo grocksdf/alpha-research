@@ -18,9 +18,11 @@ def aligned_correlation(left, right, min_overlap):
     return statistics.correlation(x, y)
 
 
-def evaluate(result, neighbors, policy, account_verified=False):
+def evaluate(result, neighbors, policy, account_verified=False, *, config=None):
     reject, missing = [], []
+    result = result if isinstance(result, dict) else {}
     metrics = result.get("metrics", {})
+    metrics = metrics if isinstance(metrics, dict) else {}
     for key in ("sharpe", "fitness", "turnover"):
         if finite(metrics.get(key)) is None:
             missing.append("missing_" + key)
@@ -54,21 +56,25 @@ def evaluate(result, neighbors, policy, account_verified=False):
             missing.append("missing_production_correlation")
         elif abs(prod) >= policy["max_abs_production_correlation"]:
             reject.append("high_production_correlation")
-    isolated=pnl_isolation_valid(result)
+    try:isolated=pnl_isolation_valid(result)
+    except (TypeError, ValueError, KeyError, AttributeError):isolated=False
     live=result.get('mode')=='live' and not result.get('synthetic')
     if live:
-        from .return_contract import submission_return_errors
-        missing.extend(submission_return_errors(result))
+        from .return_contract import EvidenceError, require_result_return_contract
+        try:require_result_return_contract(result, config=config)
+        except EvidenceError as error:missing.append(str(error))
     if live and not isolated:missing.append('unverified_pnl_sample_isolation')
-    reliable=daily_evidence_valid(result)
+    try:reliable=daily_evidence_valid(result)
+    except (TypeError, ValueError, KeyError, AttributeError):reliable=False
     if not reliable:missing.append('unverified_or_incomplete_daily_pnl')
-    stability=stability_windows(result,policy)
+    stability=stability_windows(result,policy,config=config)
     positive_fraction=stability['positive_fraction']
     if not stability['complete']:
         missing.extend(stability['reasons'])
     elif positive_fraction<policy['min_positive_window_fraction'] or stability['worst_window_sharpe']<policy['min_window_sharpe']:
         reject.append('unstable_fixed_windows')
-    valid_neighbors = [n.get("metrics", {}) for n in neighbors if n]
+    valid_neighbors = [n.get('metrics') if isinstance(n.get('metrics'), dict) else {}
+                       for n in neighbors if isinstance(n, dict) and n]
     if len(valid_neighbors) < policy["min_sensitivity_neighbors"]:
         missing.append("insufficient_parameter_neighbors")
     elif finite(metrics.get("sharpe")) is not None:
@@ -78,6 +84,7 @@ def evaluate(result, neighbors, policy, account_verified=False):
             elif n["sharpe"] < metrics["sharpe"]*policy["min_neighbor_sharpe_ratio"] or n["fitness"] < policy["min_neighbor_fitness"]:
                 reject.append("parameter_sensitive")
     changes = result.get("pnl_changes", {})
+    changes = changes if isinstance(changes, dict) else {}
     if len(changes) < policy["min_pnl_overlap"] or any(finite(x) is None for x in changes.values()):
         missing.append("insufficient_pnl_for_diversity")
     if not account_verified:

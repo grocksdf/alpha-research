@@ -204,7 +204,10 @@ class ReliabilityTests(Base):
         path=Path(self.tmp.name)/'smoke.json';path.write_text(json.dumps(record));out=Path(self.tmp.name)/'evidence.json'
         value=inspect_alpha_evidence(sim,path,out)
         self.assertTrue(all(c[0]=='GET' for c in transport.calls));self.assertEqual(transport.responses,[])
-        self.assertTrue(value['daily_evidence_complete']);self.assertTrue(value['stability']['complete'])
+        self.assertTrue(value['daily_evidence_complete'])
+        # Scripted transport is not verified live return evidence, even with
+        # complete synthetic daily observations. It must not yield trusted scores.
+        self.assertFalse(value['stability']['complete']);self.assertIsNone(value['stability']['worst_window_sharpe'])
         self.assertEqual(value['source']['alpha_id'],'alpha123');self.assertEqual(value['source']['account_ref'],sim.account_ref)
         self.assertEqual(value['source']['calendar_sha256'],self.config['brain']['pnl_evidence']['calendar_sha256'])
         self.assertFalse(value['real_account_acceptance_completed'])
