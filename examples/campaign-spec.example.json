@@ -1,0 +1,23 @@
+{
+  "campaign_id": "demo-continuous-20261024",
+  "objective": "Offline validation of durable wide screening, selective robustness and cross-batch hypothesis revision",
+  "generator": "demo",
+  "domains": [
+    "price_volume"
+  ],
+  "lifecycle": "continuous",
+  "max_total_simulations": null,
+  "max_total_llm_calls": 100,
+  "max_total_tokens": 1000000,
+  "max_total_known_usd": null,
+  "quality_goal_count": null,
+  "ideas_per_cycle": 3,
+  "queue_low_watermark": 2,
+  "breadth_before_depth": 3,
+  "max_depth_per_batch": 1,
+  "max_sensitivity_variants": 2,
+  "family_failure_limit": 4,
+  "family_cooldown_cycles": 2,
+  "max_return_correlation": 0.7,
+  "external_libraries": []
+}
