@@ -19,7 +19,9 @@ FILES=[
     "alpharesearch/campaign_overfit.py",
     "alpharesearch/campaign_evidence.py",
     "alpharesearch/campaign_cli.py",
+    "alpharesearch/campaign_live_policy.py",
     "tests/test_campaign_v2.py",
+    "verification/acceptance.py",
 ]
 
 def sha256(path):

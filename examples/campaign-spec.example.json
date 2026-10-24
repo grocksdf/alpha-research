@@ -19,5 +19,13 @@
   "family_failure_limit": 4,
   "family_cooldown_cycles": 2,
   "max_return_correlation": 0.7,
-  "external_libraries": []
+  "external_libraries": [],
+  "demo_engineering_goal_count": null,
+  "walk_forward_train": 504,
+  "walk_forward_test": 126,
+  "walk_forward_step": 126,
+  "walk_forward_min_folds": 3,
+  "walk_forward_embargo": 5,
+  "llm_max_output_tokens": 2048,
+  "llm_max_prompt_chars": 100000
 }

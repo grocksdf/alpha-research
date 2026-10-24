@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 ROOT_FILES={'README.md','program.md','pyproject.toml','.gitignore','.gitattributes'}
 CONFIG_FILES={'settings.toml','evaluation.toml','catalog.demo.json'}
-SOURCE_ROOTS={'alpharesearch','docs','examples','tests','scripts','.github'}
+SOURCE_ROOTS={'alpharesearch','docs','examples','tests','scripts','verification','.github'}
 EXTENSIONS={'.py','.md','.toml','.json','.txt','.yaml','.yml'}
 TOKEN_PATTERNS={
     'openai_like_key':re.compile(r'\bsk-(?:proj-)?[A-Za-z0-9_-]{24,}'),

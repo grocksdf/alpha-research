@@ -1,64 +1,144 @@
 {
-  "title": "AlphaResearch Campaign v2 offline patch QA",
+  "protocol": "alpha-campaign-v2-offline-development-audit-v2",
+  "project": "https://github.com/grocksdf/alpha-research",
+  "assessment_date": "2026-10-24",
   "status": "PROVISIONAL_NOT_UPSTREAM_VERIFIED",
-  "source_repository": "https://github.com/grocksdf/alpha-research",
-  "upstream_files_downloaded_to_runtime": false,
-  "original_329_test_regression": "NOT_RUN",
-  "integration_tests_against_full_v061": "NOT_RUN",
-  "real_brain_simulations_executed": 0,
-  "real_brain_submissions_executed": 0,
-  "local_core_smoke": "PASS - isolated compatible stubs: plan, queue, dedup, controls, budgets, audit, immutable guards",
-  "syntax_compilation": "PASS",
+  "source": "public GitHub v0.6.1 raw source inspected but checkout not available to runtime",
+  "upstream_checkout_integrated": false,
+  "old_v061_329_regression_status": "NOT_RUN",
+  "upstream_campaign_integration_status": "NOT_RUN",
+  "historic_state_local_llm_review_loaded": false,
+  "legacy_original_sqlite_import_status": "NOT_RUN",
+  "real_llm_provider_integration_test": "NOT_RUN",
+  "live_simulator_connected": false,
+  "real_brain_simulation_posts": 0,
+  "real_brain_submit_posts": 0,
+  "python_files_compiled": 10,
+  "offline_harness": {
+    "status": "PASS",
+    "tests": 18,
+    "test_environment": "compatible offline stubs for v0.6.1 Engine, Memory, Validator and Simulators",
+    "is_actual_upstream_regression": false,
+    "batch_count": 8,
+    "new_simulations_per_batch": 2,
+    "cumulative_simulations": [
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16
+    ],
+    "simulations_total": 16,
+    "base_candidate_trials": 9,
+    "sensitivity_trials": 7,
+    "logged_depth_associations": 7,
+    "harness_log_sha256": "1bbddc4c9670e1684f9dfa86a7dfcf3daa81cc966f574c6fa0e7070cc17899f3",
+    "harness_log_path": "verification/offline_harness_output.log"
+  },
+  "offline_one_command_upstream_acceptance": {
+    "entrypoint": "python verification/acceptance.py --repo . --config config/settings.toml",
+    "generated": true,
+    "run_here": false,
+    "requires_historic_regression_count_at_least": 329,
+    "requires_campaign_demo_total_simulations": 16,
+    "requires_mocked_real_brain_and_submit_calls": true
+  },
+  "original_security_contract": "legacy code, frozen plan hashes, project policy and submit gates unchanged by installer",
+  "limitations": [
+    "No complete checkout in this runtime; historical original regression and acceptance not passed",
+    "Real v0.6.1 queued four hypotheses migration requires actual private SQLite events",
+    "No real LLM provider error/timeout and pricing observations",
+    "No live platform authorizations or true account quotas have been verified",
+    "Independent holdout and real-market Alpha selection unproven",
+    "External WORM anchoring needed against fully privileged SQLite rewrite"
+  ],
   "files": [
     {
-      "file": "alpharesearch/campaign_cli.py",
-      "syntax": "PASS",
-      "lines": 139,
-      "sha256": "c8dc8a8402351ffcc6fc9fcd2d2ede0c4164d412ed9162eb471f1f6622c96cb6"
+      "relative_path": "DEVELOPMENT-REPORT.md",
+      "sha256": "18aa314d9cccabdf4131268523f23cdea8fbce0459272be0af9378ec4a978ef3",
+      "bytes": 10090,
+      "py_compilation": null
     },
     {
-      "file": "alpharesearch/campaign_core.py",
-      "syntax": "PASS",
-      "lines": 499,
-      "sha256": "1027a60048738599f6a2309f7df9bb63f90942303cbc990af59e2aaf3c7135aa"
+      "relative_path": "README-UPGRADE.md",
+      "sha256": "783f932feeb47d4dc0cfb9c5ee5278e875943b4a64db057b93f2bc8a1bce0b8e",
+      "bytes": 12839,
+      "py_compilation": null
     },
     {
-      "file": "alpharesearch/campaign_evidence.py",
-      "syntax": "PASS",
-      "lines": 103,
-      "sha256": "ad715bcb006029d5b1897db6928d37b8c04dd49837f2afe8a9e0f57453489db1"
+      "relative_path": "alpharesearch/campaign_cli.py",
+      "sha256": "7a832c863ecd95e85d63ecf3f6dbc35c3ec55989df118d69bda2e48915f2fdf4",
+      "bytes": 7209,
+      "py_compilation": "PASS"
     },
     {
-      "file": "alpharesearch/campaign_overfit.py",
-      "syntax": "PASS",
-      "lines": 85,
-      "sha256": "949fbc6183346ea5dec6a34babbd916f956bdeb920d49275ea6963b35d2fd75c"
+      "relative_path": "alpharesearch/campaign_core.py",
+      "sha256": "3f8c4b41942d5e29b1f78c1709ead16310e6d27b11a69c7152e351cf24fca9fa",
+      "bytes": 36638,
+      "py_compilation": "PASS"
     },
     {
-      "file": "alpharesearch/campaign_runner.py",
-      "syntax": "PASS",
-      "lines": 713,
-      "sha256": "4a434b9bca52079968fad7edd6730d60caddb8d3f00c0b11d61e2315285206f0"
+      "relative_path": "alpharesearch/campaign_evidence.py",
+      "sha256": "6a3c7b49e205053b9657d1427426a8b479e926442cfa3d3730baa2f13186d45d",
+      "bytes": 6650,
+      "py_compilation": "PASS"
     },
     {
-      "file": "tests/test_campaign_v2.py",
-      "syntax": "PASS",
-      "lines": 295,
-      "sha256": "14b493a654d7955bd89179c5e6c44407745a43a858252dfacda1625ccef8a991"
+      "relative_path": "alpharesearch/campaign_live_policy.py",
+      "sha256": "38ad5d427ed11488b033ff259564ea9eac924855ae640b9da2f9681a480db460",
+      "bytes": 11718,
+      "py_compilation": "PASS"
     },
     {
-      "file": "install_campaign_v2.py",
-      "syntax": "PASS",
-      "lines": 81,
-      "sha256": "23d42209e0d142bce20646b701b5719ebbd27bcde29cf82716e45b778ab249e6"
+      "relative_path": "alpharesearch/campaign_overfit.py",
+      "sha256": "b3e141da0181521b7ce7d4191c756d201910946502f9cc6b64806203c9601bec",
+      "bytes": 4678,
+      "py_compilation": "PASS"
+    },
+    {
+      "relative_path": "alpharesearch/campaign_runner.py",
+      "sha256": "9a243312a3d1c9def7a940448eb6542c413dea5226ab942d8957c65109a46095",
+      "bytes": 44947,
+      "py_compilation": "PASS"
+    },
+    {
+      "relative_path": "campaign-spec.example.json",
+      "sha256": "0f7b51824b4f7e74876a4bc4501e200386dd6ff64d5dedd4681b3075cf7ba890",
+      "bytes": 929,
+      "py_compilation": null
+    },
+    {
+      "relative_path": "install_campaign_v2.py",
+      "sha256": "7e1b429746d953e237d43569cf7426a2821dab3e7973bbc99b9f6bbf6a98998a",
+      "bytes": 3573,
+      "py_compilation": "PASS"
+    },
+    {
+      "relative_path": "tests/test_campaign_v2.py",
+      "sha256": "14b493a654d7955bd89179c5e6c44407745a43a858252dfacda1625ccef8a991",
+      "bytes": 15233,
+      "py_compilation": "PASS"
+    },
+    {
+      "relative_path": "verification/acceptance.py",
+      "sha256": "2e39fa30c6beac03857f42bc2cc42a78eeb6f5b3bc6333927e358c361637e970",
+      "bytes": 12206,
+      "py_compilation": "PASS"
+    },
+    {
+      "relative_path": "verification/offline_harness.py",
+      "sha256": "f97d48c896a41ea27700486d983b3889aad9256a2d7bc718a772345df2879ac4",
+      "bytes": 38023,
+      "py_compilation": "PASS"
+    },
+    {
+      "relative_path": "verification/offline_harness_output.log",
+      "sha256": "1bbddc4c9670e1684f9dfa86a7dfcf3daa81cc966f574c6fa0e7070cc17899f3",
+      "bytes": 2593,
+      "py_compilation": null
     }
-  ],
-  "limitations": [
-    "Source repository could be read online but could not be cloned/mounted here",
-    "No user's historical state/local-llm-review.json or SQLite database available",
-    "Actual continuous >6 Demo simulations not yet executed against upstream",
-    "Independent quality attestation intentionally not implemented; goal remains unfulfilled",
-    "Live research intentionally blocked",
-    "Verified research-IS evidence not supplied; walk-forward and correlation cannot claim market validation"
   ]
 }

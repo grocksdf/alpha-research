@@ -25,6 +25,65 @@ def _metrics_good(metrics, policy):
             and type(ft) in (float, int) and math.isfinite(ft)
             and sh >= policy["min_sharpe"] and ft >= policy["min_fitness"])
 
+class CampaignDiscoveryAgent(DiscoveryAgent):
+    """Keep v0.6.1 real tool calls; enforce campaign-specified resource envelope."""
+
+    def __init__(self,engine,plan,limits,started):
+        super().__init__(engine)
+        self.campaign_plan = plan
+        self.campaign_limits = limits
+        self.campaign_started = started
+
+    def complete(self,messages,tools):
+        prompt = dumps(messages)
+        if len(prompt) > self.campaign_plan["llm_max_prompt_chars"]:
+            raise ResearchError("LLM 输入上下文超出冻结长度限制；需要压缩反馈")
+        elapsed = time.monotonic() - self.campaign_started
+        remaining = self.campaign_limits["max_wall_seconds"] - elapsed
+        if remaining < 1:
+            raise ResearchError("本次执行剩余时间不足，禁止开始新的 LLM 请求")
+        output_max = self.campaign_plan["llm_max_output_tokens"]
+        old_output = self.extra_params.get("max_tokens")
+        if old_output is not None:
+            output_max = min(output_max,old_output)
+        self.extra_params = {**self.extra_params,"max_tokens":output_max}
+        original_timeout = self.engine.config["llm"]["timeout_seconds"]
+        timeout = min(float(original_timeout),float(remaining))
+        if timeout <= 0:
+            raise ResearchError("运行级超时无效")
+        if hasattr(self.api,"transport") and hasattr(self.api.transport,"timeout"):
+            self.api.transport.timeout = timeout
+        self.engine.memory.transaction(lambda: self.engine.memory.event(
+            self.engine.run_id,"campaign_llm_preflight",{
+                "task":"generate_or_revise","model":self.model,
+                "max_output_tokens":output_max,"prompt_sha256":digest(prompt),
+                "prompt_chars":len(prompt),"per_request_timeout_seconds":timeout,
+                "batch_max_wall_seconds":self.campaign_limits["max_wall_seconds"],
+                "non_idempotent_tool_writes_enabled":False}))
+        prior = self.engine.memory.db.execute(
+            "SELECT count(*) FROM costs WHERE run_id=? AND category='llm'",
+            (self.engine.run_id,)).fetchone()[0]
+        started_request = time.monotonic()
+        try:
+            return super().complete(messages,tools)
+        except BaseException as error:
+            after = self.engine.memory.db.execute(
+                "SELECT count(*) FROM costs WHERE run_id=? AND category='llm'",
+                (self.engine.run_id,)).fetchone()[0]
+            if after == prior:
+                # Native ResearchAgent records ordinary ApiError including
+                # ambiguous POST; this fallback covers custom provider
+                # exceptions or cancellation after the request begins.
+                self.engine.memory.cost(self.engine.run_id,"llm",
+                    time.monotonic()-started_request,
+                    input_tokens=None,output_tokens=None,usd=None,
+                    detail={"outcome":"unknown_after_call_exception",
+                            "error_type":type(error).__name__,
+                            "vendor_token_usage":"unknown",
+                            "vendor_charge":"unknown"})
+            raise
+
+
 class CampaignDemoDiscovery:
     """Diverse deterministic engineering fixtures; no empirical alpha claims."""
     _forms = [
@@ -79,6 +138,7 @@ class CampaignRunner:
         self.base_in_run = 0
         self.depth_in_run = 0
         self.actions = 0
+        self.pending_reason = None
 
     def _record(self, name, payload):
         self.engine.memory.transaction(lambda: self.store._log(self.cid, name, payload, self.engine.run_id))
@@ -112,6 +172,15 @@ class CampaignRunner:
     def _lifetime_guard(self):
         """Separate campaign-wide protective ceilings from per-run allowances."""
         totals = self.store.cumulative_resources(self.cid)
+        if totals["unknown_token_calls"]:
+            self.store.control(self.cid,"resource",
+                "unreconciled_llm_token_usage_operator_review")
+            return "paused_resource_unknown_token_usage"
+        if (self.plan.get("max_total_known_usd") is not None
+                and totals["unknown_usd_calls"]):
+            self.store.control(self.cid,"resource",
+                "unreconciled_llm_cost_operator_review")
+            return "paused_resource_unknown_usd"
         for key, observed, uncertainty in (
             ("max_total_llm_calls", "llm_calls", None),
             ("max_total_tokens", "known_tokens", "unknown_token_calls"),
@@ -168,6 +237,7 @@ class CampaignRunner:
         if not isinstance(ideas, list) or len(ideas) > self.plan["ideas_per_cycle"]:
             raise ResearchError("生成批次超出冻结上限")
         parents = self._parents()
+        accepted = 0
         for index, idea in enumerate(ideas):
             original = original_ids[index] if original_ids else "%d:%d" % (cycle, index)
             try:
@@ -179,22 +249,25 @@ class CampaignRunner:
                                             reason=failure, original_id=original)
             if not created or valid is None:
                 continue
-            match = self.store.external_duplicate(self.plan["external_libraries"],
-                                                   self.engine.context, valid.fingerprint)
+            match = self.store.external_duplicate(
+                self.plan["external_libraries"], self.engine.context, valid.fingerprint,
+                self.plan["external_library_sha256"])
             if match:
                 self.store.move(ident, "deferred", "l1",
                                 "external_library_duplicate_requires_review:" +
                                 match["library_sha256"] + ":" + match["trial_id"])
             else:
                 self.store.move(ident, "queued", "l1", "L1_AST_and_economic_hypothesis_validated")
-        return len(ideas)
+                accepted += 1
+        return accepted
 
     def _generate(self):
         if self.generator is None:
             if self.plan["generator"] == "demo":
                 self.generator = CampaignDemoDiscovery(self.engine.config)
             else:
-                self.generator = DiscoveryAgent(self.engine)
+                self.generator = CampaignDiscoveryAgent(
+                    self.engine,self.plan,self.limits,self.started)
         model_request = self.plan["generator"] == "llm"
         if self._resources(require_llm=model_request):
             return False
@@ -224,6 +297,12 @@ class CampaignRunner:
             # Do not retry a non-idempotent API request automatically.
             raise
         self.store.end_generation(self.cid, cycle, "completed", count)
+        if not count:
+            self.pending_reason = "search_stagnated_no_new_valid_candidate"
+            self._record("stagnation", {
+                "cycle": cycle, "generated_attempts": len(batch),
+                "new_accepted_candidates": 0,
+                "requires_feedback_revision_or_operator_review": True})
         self._record("memory_checkpoint", {"cycle": cycle,
                                             "summary_sha256": digest(feedback),
                                             "queue_size": len(self.store.rows(self.cid))})
@@ -423,8 +502,20 @@ class CampaignRunner:
         if base_total < self.plan["breadth_before_depth"]:
             return None
         untested = self.store.rows(self.cid, state="queued", phase="l1")
-        if untested and self.base_in_run < min(2, self.limits["max_new_simulations"]):
-            return None
+        if untested:
+            if self.limits["max_new_simulations"] >= 2:
+                # Preserve at least ONE fresh L1 opportunity in every batch.
+                if self.base_in_run < 1:
+                    return None
+            else:
+                # With a one-simulation batch we cannot do L1+L2 together.
+                # Allocate L2 periodically, but only after sufficiently many
+                # distinct L1 trials have received a baseline.
+                cumulative_depth = self.store.db.execute(
+                    "SELECT count(*) FROM campaign_depth WHERE campaign_id=? AND status='completed'",
+                    (self.cid,)).fetchone()[0]
+                if base_total < 3*(cumulative_depth+1):
+                    return None
         for item in self.store.rows(self.cid, state="evaluated"):
             if item["phase"] not in ("l1", "l2") or not item["trial_id"]:
                 continue
@@ -459,7 +550,8 @@ class CampaignRunner:
         self._wake_deferred()
         queue = [v for v in self.store.rows(self.cid, state="queued") if v["phase"] == "l1"]
         # Reserve L1 breadth first; L2 at most max_depth_per_batch.
-        if self._available() and self.base_in_run >= min(2, self.limits["max_new_simulations"]):
+        if self._available() and (
+                self.base_in_run >= 1 or self.limits["max_new_simulations"] == 1):
             item = self._pick_depth()
             if item:
                 self._run_depth(item)
@@ -489,6 +581,19 @@ class CampaignRunner:
             if self.store.get(self.cid)["status"] != "active":
                 reason = "operator_stop"
                 break
+            # Demo-only engineering completion is explicitly independent from
+            # real Alpha performance quality. Synthetic metrics can satisfy
+            # this fixture goal but NEVER quality_goal_count.
+            goal = self.plan.get("demo_engineering_goal_count")
+            if goal is not None:
+                n = self.store.db.execute(
+                    "SELECT count(*) FROM campaign_queue WHERE campaign_id=? "
+                    "AND state='promising' AND phase='l3'", (self.cid,)
+                ).fetchone()[0]
+                if n >= goal:
+                    self.store.control(self.cid, "complete", "demo_engineering_goal")
+                    reason = "demo_engineering_goal"
+                    break
             cumulative = self.store.cumulative(self.cid)
             cap = self.plan["max_total_simulations"]
             if cap is not None and cumulative >= cap:
@@ -505,7 +610,7 @@ class CampaignRunner:
                 break
             result = self.step()
             if result == "idle":
-                reason = "no_new_work_or_authorized_fields"
+                reason = self.pending_reason or "no_new_work_or_authorized_fields"
                 break
             self.actions += 1
         self._record("batch_end", {"run_id": self.engine.run_id, "reason": reason,
@@ -522,7 +627,7 @@ class CampaignRunner:
                        "audit": self.store.audit_queue(self.cid)})
         return report
 
-def execute_campaign(config, plan, limits=None, *, generator=None, simulator=None):
+def _execute_campaign_locked(config, plan, limits=None, *, generator=None, simulator=None):
     """One isolated, bounded batch. Caller should hold the existing worker lock.
 
     Never constructs BrainSimulator; cannot issue BRAIN Simulation or Submit.
@@ -569,15 +674,35 @@ def execute_campaign(config, plan, limits=None, *, generator=None, simulator=Non
         loop = CampaignRunner(engine, plan, store, limits, generator=generator)
         try:
             return loop.run()
+        except KeyboardInterrupt:
+            if store.get(plan["campaign_id"])["status"] == "active":
+                store.control(plan["campaign_id"], "pause", "operator_interrupt")
+            engine.memory.transaction(lambda: store._log(
+                plan["campaign_id"], "interrupt",
+                {"run_id": engine.run_id, "no_automatic_retry": True}, engine.run_id))
+            raise
         except Exception as error:
             if store.get(plan["campaign_id"])["status"] == "active":
                 store.control(plan["campaign_id"], "fault",
                               "batch_error_requires_review:" + type(error).__name__)
-            store._log(plan["campaign_id"], "fault_detail",
-                       {"error_type": type(error).__name__, "run_id": engine.run_id})
+            engine.memory.transaction(lambda: store._log(
+                plan["campaign_id"], "fault_detail",
+                {"error_type": type(error).__name__, "run_id": engine.run_id,
+                 "non_idempotent_writes_retried": False}, engine.run_id))
             raise
     finally:
         engine.memory.close()
+
+def execute_campaign(config, plan, limits=None, *, generator=None, simulator=None):
+    """Public entry point owns the same per-database worker lock as legacy CLI.
+
+    This prevents two independent Python processes from racing between
+    candidate selection, POST reservation and campaign run creation.
+    """
+    from .cli import worker_lock
+    with worker_lock(config["database"]):
+        return _execute_campaign_locked(config, plan, limits,
+                                        generator=generator, simulator=simulator)
 
 def control_campaign(config, plan, action, reason="operator"):
     validate_campaign_plan(config, plan)

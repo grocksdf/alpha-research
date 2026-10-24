@@ -18,10 +18,17 @@ from .campaign_overfit import correlation_precheck, walk_forward_audit
 MAX_DOCUMENT_BYTES = 10_000_000
 
 def review_campaign_is(config, plan, documents, *,
-                       train_size=504, test_size=126, min_folds=3):
+                       train_size=None, test_size=None, min_folds=None):
     validate_campaign_plan(config, plan)
     if config["mode"] != "demo":
         raise ResearchError("本工具仅离线检查已提供的研究 IS 证据；不发起 BRAIN 连接")
+    train_size = plan["walk_forward_train"] if train_size is None else train_size
+    test_size = plan["walk_forward_test"] if test_size is None else test_size
+    min_folds = plan["walk_forward_min_folds"] if min_folds is None else min_folds
+    if (train_size != plan["walk_forward_train"] or
+            test_size != plan["walk_forward_test"] or
+            min_folds != plan["walk_forward_min_folds"]):
+        raise ResearchError("禁止在查看结果后修改冻结的 walk-forward 划分")
     if not isinstance(documents, list) or not 1 <= len(documents) <= 100:
         raise ResearchError("证据文件数量必须在 1..100 内")
     seen = set()
@@ -57,8 +64,10 @@ def review_campaign_is(config, plan, documents, *,
             trial = memory.trial(item["trial_id"])
             if trial["context"] != research_context(config):
                 raise ResearchError("证据候选属于不同研究范围")
-            wfa = walk_forward_audit(series,train_size=train_size,test_size=test_size,
-                                     min_folds=min_folds)
+            wfa = walk_forward_audit(
+                series,train_size=train_size,test_size=test_size,
+                step=plan["walk_forward_step"],
+                min_folds=min_folds,embargo=plan["walk_forward_embargo"])
             corr = correlation_precheck(series,
                        [x for x in verified if x is not series],
                        threshold=plan["max_return_correlation"],
@@ -75,6 +84,7 @@ def review_campaign_is(config, plan, documents, *,
         report_hash=digest({"campaign_id":plan["campaign_id"],
                             "plan_sha256":plan["plan_sha256"],
                             "results":results,"policy_hash":digest(config["policy"])})
+        attempted = store.summary(plan["campaign_id"])["total_generated_attempts"]
         def write():
             memory.db.execute("""CREATE TABLE IF NOT EXISTS campaign_diagnostics(
                   id TEXT PRIMARY KEY,campaign_id TEXT NOT NULL,report_json TEXT NOT NULL,
@@ -93,11 +103,15 @@ def review_campaign_is(config, plan, documents, *,
                 store._log(plan["campaign_id"],"overfit_diagnostics",
                            {"report_sha256":report_hash,
                             "IS_evidence_count":len(results),
+                            "total_hypothesis_attempts":attempted,
+                            "selection_multiplicity_warning": attempted>len(results),
                             "independent_holdout_validated":False,
                             "formula_selection": "diagnostic_only"})
         memory.transaction(write)
         return {"campaign_id":plan["campaign_id"], "report_sha256":report_hash,
-                "results":results, "final_holdout_revealed":False,
+                "results":results, "total_hypothesis_attempts":attempted,
+                "multiple_testing_adjustment_needed":attempted>len(results),
+                "final_holdout_revealed":False,
                 "automated_quality_goal_completion":False}
     finally:
         memory.close()

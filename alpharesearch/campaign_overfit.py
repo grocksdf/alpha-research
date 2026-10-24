@@ -49,7 +49,8 @@ def correlation_precheck(candidate, established, *, threshold=0.7, min_overlap=2
             "max_absolute_correlation": max_abs, "compared": compared,
             "threshold": threshold, "evidence_type": "verified_research_is_only"}
 
-def walk_forward_audit(series, *, train_size, test_size, step=None, min_folds=3):
+def walk_forward_audit(series, *, train_size, test_size, step=None, min_folds=3,
+                       embargo=0):
     """Fixed predeclared chronological windows, no parameter search per fold.
 
     Unlike the final holdout, this uses research IS data and is diagnostic only.
@@ -64,13 +65,22 @@ def walk_forward_audit(series, *, train_size, test_size, step=None, min_folds=3)
     step = test_size if step is None else step
     if type(step) is not int or step < test_size:
         raise ResearchError("walk-forward 测试窗口不得重叠")
+    if type(embargo) is not int or not 0 <= embargo <= 252:
+        raise ResearchError("walk-forward embargo 窗口无效")
     obs = series.returns
     folds = []
-    for stop in range(train_size, len(obs)-test_size+1, step):
-        held = obs[stop:stop+test_size]
+    # The IS-training slice ends before the embargo. The embargo and test
+    # windows are strictly disjoint; the final protected holdout is excluded
+    # by VerifiedReturnSeries contract sample_role='research_is'.
+    for stop in range(train_size, len(obs)-test_size-embargo+1, step):
+        test_start = stop + embargo
+        held = obs[test_start:test_start+test_size]
         avg = sum(held)/len(held)
-        folds.append({"train_end": series.dates[stop-1],
-                      "test_start": series.dates[stop], "test_end": series.dates[stop+test_size-1],
+        folds.append({"train_start": series.dates[stop-train_size],
+                      "train_end": series.dates[stop-1],
+                      "embargo_sessions": embargo,
+                      "test_start": series.dates[test_start],
+                      "test_end": series.dates[test_start+test_size-1],
                       "test_mean_daily_return": avg,
                       "positive_mean": avg > 0})
     if len(folds) < min_folds:
@@ -81,5 +91,6 @@ def walk_forward_audit(series, *, train_size, test_size, step=None, min_folds=3)
             "folds": folds,
             "protocol_sha256": digest({"train": train_size, "test": test_size,
                                       "step": step, "min_folds": min_folds,
+                                      "embargo": embargo,
                                       "series_sha256": series.input_sha256}),
             "independent_holdout_validated": False}

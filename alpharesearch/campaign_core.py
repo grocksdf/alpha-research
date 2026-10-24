@@ -5,6 +5,7 @@ autonomous_studies, frozen hashes, submit() and return contracts are untouched.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -35,7 +36,10 @@ ALLOWED_SPEC = {"campaign_id", "objective", "domains", "generator", "research_no
                 "max_depth_per_batch", "max_sensitivity_variants", "family_failure_limit",
                 "family_cooldown_cycles", "max_return_correlation",
                 "external_libraries", "max_total_llm_calls", "max_total_tokens",
-                "max_total_known_usd"}
+                "max_total_known_usd", "demo_engineering_goal_count",
+                "walk_forward_train", "walk_forward_test", "walk_forward_step",
+                "walk_forward_min_folds", "walk_forward_embargo",
+                "llm_max_output_tokens", "llm_max_prompt_chars"}
 ALLOWED_LIMITS = {"max_new_simulations", "max_llm_calls", "max_steps", "max_wall_seconds",
                   "max_input_output_tokens", "max_known_usd"}
 
@@ -57,6 +61,12 @@ def create_campaign_plan(config, spec):
         "family_cooldown_cycles": 2, "max_return_correlation": 0.7,
         "external_libraries": [], "max_total_llm_calls": None,
         "max_total_tokens": None, "max_total_known_usd": None,
+        "demo_engineering_goal_count": None,
+        "walk_forward_train": 504, "walk_forward_test": 126,
+        "walk_forward_step": 126, "walk_forward_min_folds": 3,
+        "walk_forward_embargo": 5,
+        "llm_max_output_tokens": 2048,
+        "llm_max_prompt_chars": 100000,
     }
     data.update(spec)
     if not isinstance(data.get("campaign_id"), str) or not re.fullmatch(
@@ -75,9 +85,21 @@ def create_campaign_plan(config, spec):
     goal = data["quality_goal_count"]
     if goal is not None:
         _positive(goal, "quality_goal_count")
-    for key in ("max_total_llm_calls", "max_total_tokens"):
+    for key in ("max_total_llm_calls", "max_total_tokens",
+                "demo_engineering_goal_count"):
         if data[key] is not None:
             _positive(data[key],key)
+    for key in ("walk_forward_train", "walk_forward_test",
+                "walk_forward_step", "walk_forward_min_folds"):
+        _positive(data[key],key)
+    if data["walk_forward_min_folds"] < 2:
+        raise ResearchError("walk-forward 至少需要两个样本外研究窗口")
+    _positive(data["walk_forward_embargo"], "walk_forward_embargo",
+              maximum=200, allow_zero=True)
+    if data["walk_forward_step"] < data["walk_forward_test"]:
+        raise ResearchError("walk-forward 测试窗口不能重叠")
+    _positive(data["llm_max_output_tokens"],"llm_max_output_tokens",16000)
+    _positive(data["llm_max_prompt_chars"],"llm_max_prompt_chars",1000000)
     lifetime_usd = data["max_total_known_usd"]
     if lifetime_usd is not None and (type(lifetime_usd) not in (int,float) or
             not 0 < lifetime_usd < 10000000):
@@ -106,11 +128,21 @@ def create_campaign_plan(config, spec):
             any(not isinstance(p, str) or not p or len(p) > 2048 for p in libs) or
             len(libs) != len(set(libs))):
         raise ResearchError("外部库必须是显式、互不重复的只读路径")
+    library_hashes = {}
     for path in libs:
         file = Path(path).expanduser()
         if not file.is_file() or file.resolve() == Path(config["database"]).resolve():
             raise ResearchError("外部库不存在或指向主库：" + path)
-    data.update(
+        # Only explicitly frozen, quiescent SQLite copies are allowed. An
+        # active SQLite WAL is not a stable cross-library dedup reference.
+        if Path(str(file)+"-wal").exists() or Path(str(file)+"-shm").exists():
+            raise ResearchError("跨库去重必须提供停止写入并 checkpoint 后的只读库快照："+path)
+        hasher = hashlib.sha256()
+        with file.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024*1024), b""):
+                hasher.update(chunk)
+        library_hashes[path] = hasher.hexdigest()
+    data.update(external_library_sha256=library_hashes, 
         protocol=PROTOCOL, mode=config["mode"], context=research_context(config),
         snapshot_sha256=digest(snapshot(config)),
         database_ref=digest(str(Path(config["database"]).resolve())),
@@ -169,6 +201,16 @@ class CampaignStore:
           created TEXT NOT NULL, updated TEXT NOT NULL,
           UNIQUE(campaign_id,fingerprint));
         CREATE INDEX IF NOT EXISTS campaign_queue_ready ON campaign_queue(campaign_id,state,phase,priority,cycle);
+        CREATE TABLE IF NOT EXISTS campaign_duplicates(
+          attempt_id TEXT PRIMARY KEY,
+          campaign_id TEXT NOT NULL REFERENCES campaign_projects(campaign_id),
+          existing_idea_id TEXT NOT NULL REFERENCES campaign_queue(id),
+          original_id TEXT,
+          idea_json TEXT NOT NULL,
+          fingerprint TEXT NOT NULL,
+          state TEXT NOT NULL CHECK(state='rejected'),
+          reason TEXT NOT NULL,
+          created TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS campaign_runs(
           run_id TEXT PRIMARY KEY REFERENCES runs(id), campaign_id TEXT NOT NULL,
           batch_no INTEGER NOT NULL, limits_json TEXT NOT NULL, created TEXT NOT NULL,
@@ -192,6 +234,24 @@ class CampaignStore:
         CREATE TRIGGER IF NOT EXISTS campaign_no_idea_delete
         BEFORE DELETE ON campaign_queue
         BEGIN SELECT RAISE(ABORT,'immutable campaign hypothesis'); END;
+        CREATE TRIGGER IF NOT EXISTS campaign_no_idea_created_change
+        BEFORE UPDATE OF created ON campaign_queue
+        BEGIN SELECT RAISE(ABORT,'immutable hypothesis creation time'); END;
+        CREATE TRIGGER IF NOT EXISTS campaign_no_project_created_change
+        BEFORE UPDATE OF created ON campaign_projects
+        BEGIN SELECT RAISE(ABORT,'immutable campaign creation time'); END;
+        CREATE TRIGGER IF NOT EXISTS campaign_no_generation_identity_change
+        BEFORE UPDATE OF campaign_id,cycle,run_id,request_hash ON campaign_generations
+        BEGIN SELECT RAISE(ABORT,'immutable generation identity'); END;
+        CREATE TRIGGER IF NOT EXISTS campaign_no_depth_update
+        BEFORE UPDATE ON campaign_depth
+        BEGIN SELECT RAISE(ABORT,'immutable depth evidence'); END;
+        CREATE TRIGGER IF NOT EXISTS campaign_no_duplicate_update
+        BEFORE UPDATE ON campaign_duplicates
+        BEGIN SELECT RAISE(ABORT,'immutable duplicate attempt'); END;
+        CREATE TRIGGER IF NOT EXISTS campaign_no_duplicate_delete
+        BEFORE DELETE ON campaign_duplicates
+        BEGIN SELECT RAISE(ABORT,'immutable duplicate attempt'); END;
         CREATE TRIGGER IF NOT EXISTS campaign_no_generation_delete
         BEFORE DELETE ON campaign_generations
         BEGIN SELECT RAISE(ABORT,'immutable generation evidence'); END;
@@ -251,8 +311,20 @@ class CampaignStore:
         # Intentionally fail closed: a Demo Sharpe/fitness score is not an
         # independently attested quality achievement, and the external holdout
         # attestation protocol is NOT wired into this offline adapter.
-        if action == "complete" and reason != "finite_lifecycle_cap":
-            raise ResearchError("质量目标完成缺乏独立留出签署证据，禁止完成")
+        if action == "complete":
+            if reason == "demo_engineering_goal":
+                frozen = json.loads(self.get(cid)["plan_json"])
+                goal = frozen.get("demo_engineering_goal_count")
+                count = self.db.execute(
+                    "SELECT count(*) FROM campaign_queue "
+                    "WHERE campaign_id=? AND state='promising' AND phase='l3'", (cid,)
+                ).fetchone()[0]
+                if frozen.get("mode") != "demo" or goal is None or count < goal:
+                    raise ResearchError("Demo 工程目标尚未满足，禁止完成")
+            elif reason != "finite_lifecycle_cap":
+                # Real quality goals require a separate independently verified
+                # holdout protocol; no Demo score may satisfy this.
+                raise ResearchError("质量目标完成缺乏独立留出签署证据，禁止完成")
         if not isinstance(reason, str) or not reason or len(reason) > 500:
             raise ResearchError("控制原因无效")
         def work():
@@ -299,9 +371,17 @@ class CampaignStore:
                 "SELECT id FROM campaign_queue WHERE campaign_id=? AND fingerprint=?",
                 (cid, fingerprint)).fetchone()
             if old:
-                self.memory.transaction(lambda: self._log(
-                    cid, "duplicate", {"attempt_id": ident, "existing_idea_id": old[0],
-                                       "fingerprint": fingerprint, "original_id": original_id}))
+                def record_duplicate():
+                    changed = self.db.execute(
+                        "INSERT OR IGNORE INTO campaign_duplicates VALUES(?,?,?,?,?,?,?,?,?)",
+                        (ident, cid, old[0], original_id, dumps(idea), fingerprint,
+                         "rejected", "duplicate_ast_fingerprint", now())).rowcount
+                    if changed:
+                        self._log(cid, "duplicate", {
+                            "attempt_id": ident, "existing_idea_id": old[0],
+                            "fingerprint": fingerprint, "original_id": original_id,
+                            "state": "rejected", "reason": "duplicate_ast_fingerprint"})
+                self.memory.transaction(record_duplicate)
                 return old[0], False
         status = "validated" if validated else "rejected"
         def work():
@@ -416,12 +496,24 @@ class CampaignStore:
                 "measured_operation_seconds": sum(r["seconds"] for r in records),
                 "total_simulations": self.cumulative(cid)}
 
-    def external_duplicate(self, paths, context, fingerprint):
-        """No external writes and no cross-context result reuse."""
+    def external_duplicate(self, paths, context, fingerprint, expected_hashes=None):
+        """No external writes, no cross-context reuse, and frozen source bytes."""
         for name in paths:
             file = Path(name).expanduser().resolve()
             if not file.is_file():
                 raise ResearchError("跨库去重源消失，禁止继续：" + str(file))
+            if Path(str(file)+"-wal").exists() or Path(str(file)+"-shm").exists():
+                raise ResearchError("跨库数据库发生 WAL 活跃写入；停止去重")
+            if expected_hashes is not None:
+                expected = expected_hashes.get(name)
+                if not isinstance(expected, str):
+                    raise ResearchError("冻结外部库来源缺少文件摘要")
+                hasher=hashlib.sha256()
+                with file.open("rb") as handle:
+                    for chunk in iter(lambda: handle.read(1024*1024), b""):
+                        hasher.update(chunk)
+                if hasher.hexdigest() != expected:
+                    raise ResearchError("外部库文件相对冻结计划发生改变："+name)
             try:
                 uri = file.as_uri() + "?mode=ro"
                 with closing(sqlite3.connect(uri, uri=True, timeout=5)) as db:
@@ -441,6 +533,7 @@ class CampaignStore:
         """Replay immutable transition facts and detect accidental direct SQL edits."""
         recorded = {}
         project_state = None
+        project_reason = None
         project_created_count = 0
         # Both the persistent queue and the campaign status must be supported
         # by a valid append-only event history, not merely by mutable rows.
@@ -457,31 +550,88 @@ class CampaignStore:
                 if entry.get("plan_hash") != self.get(cid)["plan_hash"]:
                     raise ResearchError("冻结计划与创建审计事件不符")
                 project_state = entry["status"]
+                project_reason = "created"
             else:
                 if project_state is None or entry["from"] != project_state:
                     raise ResearchError("campaign 控制审计不连续")
                 project_state = entry["to"]
-        if project_created_count != 1 or project_state != self.get(cid)["status"]:
-            raise ResearchError("campaign 状态未经审计直接篡改")
+                project_reason = entry["reason"]
+        if (project_created_count != 1 or project_state != self.get(cid)["status"]
+                or project_reason != self.get(cid)["reason"]):
+            raise ResearchError("campaign 状态或原因未经审计直接篡改")
         for row in self.db.execute("SELECT kind,payload FROM events WHERE kind IN "
                                    "('campaign_idea','campaign_transition') ORDER BY id"):
             p = json.loads(row["payload"])
             if p.get("campaign_id") != cid:
                 continue
             if row["kind"] == "campaign_idea":
-                recorded[p["idea_id"]] = ("generated", "l1", None)
+                recorded[p["idea_id"]] = ("generated", "l1", None, "")
             else:
                 old = recorded.get(p["idea_id"])
                 if old is None or old[0] != p["from"]:
                     raise ResearchError("campaign 迁移历史不连续")
-                recorded[p["idea_id"]] = (p["to"], p["phase"], p["trial_id"])
+                recorded[p["idea_id"]] = (p["to"], p["phase"], p["trial_id"], p["reason"])
         observed = {}
-        for row in self.db.execute("SELECT id,state,phase,trial_id FROM campaign_queue WHERE campaign_id=?",
+        for row in self.db.execute("SELECT id,state,phase,trial_id,reason FROM campaign_queue WHERE campaign_id=?",
                                    (cid,)):
-            observed[row["id"]] = (row["state"], row["phase"], row["trial_id"])
+            observed[row["id"]] = (
+                row["state"], row["phase"], row["trial_id"], row["reason"])
         if recorded != observed:
             raise ResearchError("campaign 队列被绕过事件链直接修改或删除")
-        return {"campaign_ideas": len(recorded), "audit_chain": self.memory.verify()}
+        # Independently replay generation, batch and duplicate records. SQLite
+        # triggers alone do NOT prevent a privileged operator from rewriting
+        # arbitrary database bytes; external anchoring is still recommended.
+        generations = {}
+        runs = {}
+        duplicates = {}
+        for row in self.db.execute(
+                "SELECT kind,payload FROM events WHERE kind IN "
+                "('campaign_generation','campaign_execution','campaign_duplicate') "
+                "ORDER BY id"):
+            ev = json.loads(row["payload"])
+            if ev.get("campaign_id") != cid:
+                continue
+            if row["kind"] == "campaign_generation":
+                cycle = ev["cycle"]
+                if ev["status"] == "started":
+                    if cycle in generations:
+                        raise ResearchError("重复的生成开始审计")
+                elif generations.get(cycle) != "started":
+                    raise ResearchError("生成结束没有对应开始事件")
+                generations[cycle] = ev["status"]
+            elif row["kind"] == "campaign_execution":
+                run = ev["run_id"]
+                if run in runs:
+                    raise ResearchError("重复的 batch 审计")
+                runs[run] = (ev["batch"], ev["limits"])
+            else:
+                attempt = ev["attempt_id"]
+                if attempt in duplicates:
+                    raise ResearchError("重复的 duplicate 审计")
+                duplicates[attempt] = (ev["existing_idea_id"], ev["fingerprint"])
+        db_generations = {
+            x["cycle"]: x["status"] for x in self.db.execute(
+                "SELECT cycle,status FROM campaign_generations WHERE campaign_id=?", (cid,))}
+        if generations != db_generations:
+            raise ResearchError("生成历史与当前 checkpoint 状态不一致")
+        db_runs = {
+            x["run_id"]: (x["batch_no"], json.loads(x["limits_json"]))
+            for x in self.db.execute(
+                "SELECT run_id,batch_no,limits_json FROM campaign_runs WHERE campaign_id=?", (cid,))}
+        if runs != db_runs:
+            raise ResearchError("执行批次记录与审计历史不一致")
+        db_duplicates = {
+            x["attempt_id"]: (x["existing_idea_id"],x["fingerprint"])
+            for x in self.db.execute(
+                "SELECT attempt_id,existing_idea_id,fingerprint FROM campaign_duplicates "
+                "WHERE campaign_id=?", (cid,))}
+        if duplicates != db_duplicates:
+            raise ResearchError("重复假设尝试记录与审计不一致")
+        return {"campaign_ideas": len(recorded),
+                "campaign_batches":len(runs),
+                "generation_cycles":len(generations),
+                "duplicate_attempts":len(duplicates),
+                "audit_chain": self.memory.verify()}
 
     def summary(self, cid):
         info = self.get(cid)
@@ -490,7 +640,13 @@ class CampaignStore:
         return {"campaign_id": cid, "status": info["status"], "reason": info["reason"],
                 "plan_sha256": info["plan_hash"], "simulations": self.cumulative(cid),
                 "cumulative_resources": self.cumulative_resources(cid),
-                "counts": counts, "queue": [
+                "counts": counts, "duplicate_attempts": self.db.execute(
+                    "SELECT count(*) FROM campaign_duplicates WHERE campaign_id=?", (cid,)
+                ).fetchone()[0],
+                "total_generated_attempts": len(items)+self.db.execute(
+                    "SELECT count(*) FROM campaign_duplicates WHERE campaign_id=?", (cid,)
+                ).fetchone()[0],
+                "queue": [
                     {"idea_id": x["id"], "state": x["state"], "phase": x["phase"],
                      "expression": x["idea"].get("expression"), "trial_id": x["trial_id"],
                      "reason": x["reason"], "parent_id": x["parent_id"]}

@@ -60,9 +60,9 @@ def main(argv=None):
             p.add_argument("--old-study-id",required=True)
         if name=="review-is":
             p.add_argument("--documents",nargs="+",required=True)
-            p.add_argument("--train-size",type=int,default=504)
-            p.add_argument("--test-size",type=int,default=126)
-            p.add_argument("--min-folds",type=int,default=3)
+            p.add_argument("--train-size",type=int)
+            p.add_argument("--test-size",type=int)
+            p.add_argument("--min-folds",type=int)
     args=parser.parse_args(argv)
     try:
         config=load_settings(args.config)
@@ -109,28 +109,34 @@ def main(argv=None):
             if not 0 <= args.sleep_seconds <= 3600:
                 raise ResearchError("--sleep-seconds 范围不正确")
         completed=0
-        with worker_lock(config["database"]):
-            while True:
-                report=execute_campaign(config,plan,limits)
-                completed+=1
-                run_id=report.get("batch_run_id","lifecycle_complete")
-                path=Path(args.report_dir)/("%s-%05d-%s.json" %
-                    (plan["campaign_id"],completed,run_id))
-                save_new(path,report)
-                output({"report":str(path),"batch_run_id":run_id,
-                        "campaign_status":report["status"],
-                        "campaign_simulations":report["simulations"],
-                        "batch_simulations":report.get("counts_this_batch",0),
-                        "stop_reason":report["batch_stop_reason"],
-                        "counts":report["counts"],"real_brain_simulations":0,"brain_submits":0})
-                if args.command=="run":
-                    return 0
-                if report["status"]!="active" or report["batch_stop_reason"] in (
-                        "no_new_work_or_authorized_fields","finite_lifecycle_cap"):
-                    return 0
-                if not args.forever and completed>=args.batches:
-                    return 0
-                time.sleep(args.sleep_seconds)
+        while True:
+            # Each invocation acquires/releases the worker lock; an entire
+            # multi-day drive does NOT hold it while idle or sleeping.
+            report=execute_campaign(config,plan,limits)
+            completed+=1
+            run_id=report.get("batch_run_id","lifecycle_complete")
+            path=Path(args.report_dir)/("%s-%05d-%s.json" %
+                (plan["campaign_id"],completed,run_id))
+            save_new(path,report)
+            output({"report":str(path),"batch_run_id":run_id,
+                    "campaign_status":report["status"],
+                    "campaign_simulations":report["simulations"],
+                    "batch_simulations":report.get("counts_this_batch",0),
+                    "stop_reason":report["batch_stop_reason"],
+                    "counts":report["counts"],"real_brain_simulations":0,"brain_submits":0})
+            if args.command=="run":
+                return 0
+            if report["status"]!="active" or report["batch_stop_reason"] in (
+                    "no_new_work_or_authorized_fields","finite_lifecycle_cap",
+                    "search_stagnated_no_new_valid_candidate",
+                    "demo_engineering_goal", "wall_limit_insufficient_for_llm_timeout"):
+                return 0
+            if not args.forever and completed>=args.batches:
+                return 0
+            time.sleep(args.sleep_seconds)
+    except KeyboardInterrupt:
+        print("campaign interrupted; inspect audit trail before resuming",file=sys.stderr)
+        return 130
     except (ResearchError,OSError,ValueError) as error:
         print("campaign error:",str(error),file=sys.stderr)
         return 2

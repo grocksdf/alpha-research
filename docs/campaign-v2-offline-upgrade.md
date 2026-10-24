@@ -2,7 +2,7 @@
 
 **状态：待在完整 v0.6.1 仓库中安装和执行完整回归；不得视为项目已完成的验收报告。**
 
-本补丁在 `alpharesearch/` 下新增 5 个模块与 1 个测试文件。
+本补丁在 `alpharesearch/` 下新增 6 个模块、上游集成测试和两个验收脚本。
 **不替换或修改** `autonomy.py`, `memory.py`, `engine.py`, `agent.py`,
 `discovery.py`, `brain.py`, `return_contract.py`, `local_validation.py`,
 `cli.py`, `program.md` 或安全门禁。补丁仅提供离线 Demo 路径，
@@ -150,10 +150,30 @@ python -m alpharesearch.campaign_cli review-is \
 以上属于研究期诊断，而不是 BRAIN 真实绩效、独立留出证明或正式提交合格性。
 没有真实且审核过的 IS 收益时应返回 `unavailable`，禁止伪造分析。
 
-## 离线测试命令
+## 一键执行全仓库离线验收（推荐）
+
+在原仓库安装所有增量文件后，运行：
 
 ```bash
-python -m unittest tests.test_campaign_v2 -v
+python verification/acceptance.py \
+  --repo . --config config/settings.toml
+```
+
+脚本先校验 `mode=demo`、`live_research_enabled=false` 和
+`submission_enabled=false`，移除传给测试子进程的真实 BRAIN/LLM 凭据。
+然后自动执行**至少原版 329 项**回归测试，再在临时 SQLite 库中执行
+8 个 bounded Run（累计 16 次 Demo Simulation），覆盖跨批队列、L1 和 L2
+配额、audit queue、哈希和安全禁用。全部通过后在 `state/` 生成
+不可覆盖的 `campaign-acceptance-*.json` 与日志文件。
+
+报告只在全仓库实际验收通过时才写 `overall_status=PASS`；任何失败、
+不足 329 项原回归或试验覆盖不够都会标记失败。
+脚本不会运行真实 BRAIN Simulation 或 Submit，也不会使用历史 `state/` 研究库。
+
+可单独运行：
+
+```bash
+python -m unittest discover -s tests -p 'test_campaign_v2.py' -v
 python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
@@ -176,3 +196,42 @@ python -m unittest discover -s tests -p 'test_*.py' -v
 4. walk-forward 与相关性模块需真实审核的研究期 IS 收益输入才能得到有意义的结果；
    Demo 指标无法转成市场业绩。
 5. 这是工程补丁与离线过程测试，不代表获得真实 Alpha，也不代表可以自动 Submit。
+
+## 二次整改：重要设计和安全细节
+
+1. **无法有效生成时不得 LLM 空转。** 无新增合法候选时终止本批次，
+   把重复尝试、无效假设和停滞原因保存到 SQLite 和审计事件。
+   优先调度父节点已被测试的修订候选；仍必须重新 AST 验证。
+2. **未知 token/费用不能当零。** 原生 `ResearchAgent.complete()` 的
+   HTTP/API 错误调用及额外传输异常均可记录耗时，真实供应商未返回
+   `usage` 时 token/费用为 NULL；发现无法核算的累计 token 消耗
+   会进入 `paused_resource`，必须人工对账而不能换一个 Run 隐式重置。
+3. **Campaign 目标和费用分离。** `lifecycle=continuous` 必须明确
+   `max_total_simulations=null`。可独立选择运行级 Simulation/token/
+   LLM/耗时上限，或单独冻结 campaign 级模型调用、token、美元成本保护。
+   `quality_goal_count` 是待验证的真实 Alpha 质量目标；不允许由
+   Demo 数据完成。`demo_engineering_goal_count` 只完成合成流程工程目标，
+   永远不会声称真实 Alpha 已通过。
+4. **不可篡改记录的边界。** 追加哈希事件链、SQLite 更新/删除触发器、
+   审计重放和冻结计划约束均已使用，但它们**不能防止掌握数据库文件
+   root 权限的人整体替换文件及重算哈希链**。生产级防篡改还需要
+   外部不可变对象存储、定期签名/时间戳锚定和隔离密钥。
+5. **过拟合。** 冻结相关性阈值、walk-forward 训练/测试长度、
+   间隔和 embargo；用已审查的 `research_is` 数据作诊断，
+   记录测试数及重复尝试，保护独立最终留出。不输入真实数据时返回
+   `unavailable`，不发明经验相关性或统计显著性。
+6. **Live 只做离线策略设计。** `campaign_live_policy.py` 包含
+   账户范围、时间有效性、人工审核的限流清单前置检查，以及
+   持久化串行令牌与调用频率限制器；**尚未连接真实 BRAIN 调度路径**，
+   `execute_campaign()` 明确拒绝 `mode=live`。没有 BRAIN 授权和
+   平台限流实测，不能宣称完整 Live 已验收。
+7. **真实仓库综合验证。** 新增 `verification/acceptance.py` 可自动
+   执行全仓库安全回归与 Demo 超 6 次长跑。补丁内附的
+   `verification/offline_harness.py` 是独立兼容接口替身，不是原
+   v0.6.1 源码实测，不得混淆两种证据层级。
+
+**严谨的最终签收条件：** 安装后执行一次完整 `verification/acceptance.py`，
+获得真实仓库的 `overall_status=PASS`，并检查原计划/数据库 SHA、
+审计链及无法自动对账的任务记录。真实市场策略质量与平台
+授权仍须保留独立的人工审批。用户不需要手工计算 16 次模拟
+或分析单批队列，但运行工具必须获得源仓库和私有 SQLite 的本地访问。
