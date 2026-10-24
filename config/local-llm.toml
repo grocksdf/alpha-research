@@ -1,0 +1,94 @@
+# 隔离的本地真实 LLM 自主研究实验配置（由 config/settings.toml 复制生成）
+# 用途：docs/local-llm-experiment-v061.md 验收实验；不触碰原始研究数据库。
+# 安全边界：demo 模式 + 合成模拟器；不连接 BRAIN；不提交；密钥只从环境变量读取。
+
+mode = "demo"
+database = "state/local-llm.sqlite3"
+catalog = "config/catalog.demo.json"
+evaluation = "config/evaluation.toml"
+program = "program.md"
+account_profile_verified = false
+account_profile_note = "尚未使用当前账户核实接口、检查项和提交规则"
+
+[scope]
+instrumentType = "EQUITY"
+region = "USA"
+universe = "TOP3000"
+delay = 1
+language = "FASTEXPR"
+decay = 4
+neutralization = "SUBINDUSTRY"
+truncation = 0.08
+pasteurization = "ON"
+unitHandling = "VERIFY"
+nanHandling = "OFF"
+visualization = false
+
+[brain]
+base_url = "https://api.worldquantbrain.com"
+timeout_seconds = 30
+poll_deadline_seconds = 900
+max_get_attempts = 100
+authentication = "/authentication"
+simulations = "/simulations"
+alpha = "/alphas/{id}"
+check = "/alphas/{id}/check"
+self_correlation = "/alphas/{id}/correlations/self"
+production_correlation = "/alphas/{id}/correlations/prod"
+yearly = "/alphas/{id}/recordsets/yearly-stats"
+pnl = "/alphas/{id}/recordsets/pnl"
+submit = "/alphas/{id}/submit"
+fields = "/data-fields"
+operators = "/operators"
+user = "/users/self"
+
+[brain.discovery_evidence]
+schema_reviewed = false
+review_note = ""
+date_semantics = "unverified"
+is_start_path = []
+is_end_path = []
+
+[brain.pnl_evidence]
+reviewed = false
+review_note = ""
+value_semantics = "unverified"
+capital_path = []
+calendar_reviewed = false
+calendar_id = ""
+calendar_source = ""
+calendar_review_note = ""
+calendar_region = ""
+calendar_start = ""
+calendar_end = ""
+calendar_file = ""
+calendar_sha256 = ""
+
+[llm]
+# 实验负责人授权配置（2026-10-21）：火山方舟 Volce Ark，OpenAI 兼容 Chat Completions 协议。
+# 端点连通性、密钥有效性、tools 函数调用均已实测通过（HTTP 200 / finish_reason=tool_calls）。
+# 注意：该接入点背后为推理模型（glm-5-2-260617），reasoning tokens 计入 completion_tokens，用量偏高。
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+# 推理接入点 ID（endpoint ID，非模型名；由实验负责人提供）。
+model = "ep-20260731225346-6rs7x"
+timeout_seconds = 120
+# LLM_API_KEY 只从运行环境变量读取；严禁写入本文件、代码、报告或日志。
+
+[safety]
+live_research_enabled = false
+submission_enabled = false
+validated_probe_record = ""
+
+[research]
+paper_search_enabled = false
+max_paper_requests_per_run = 5
+max_papers_per_search = 5
+max_notes_per_run = 30
+
+[cost]
+# 负责人按供应商价格填入每百万 token 美元价格；缺省不推测费用。
+# input_per_million_usd = 0.0
+# output_per_million_usd = 0.0
+
+[validation]
+holdout_registry = "state/holdout-registry.sqlite3"

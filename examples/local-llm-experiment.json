@@ -1,0 +1,11 @@
+{
+  "study_id": "local-llm-experiment-001",
+  "objective": "验证真实LLM能否基于可用量价数据自主提出具有不同经济机制的新Alpha假设，生成合法公式，并根据合成实验反馈做出有理由的改进",
+  "domains": ["price_volume"],
+  "max_simulations": 6,
+  "max_cycles": 3,
+  "max_ideas": 9,
+  "ideas_per_cycle": 3,
+  "generator": "llm",
+  "research_notes": "优先提出不同经济机制的Alpha，不局限于已有历史公式。每个假设说明机制、预期方向、预测周期、证伪条件。避免只修改窗口参数来伪造创新。只能使用已审核字段和算子。合成模拟结果不能当作真实市场证据。"
+}
