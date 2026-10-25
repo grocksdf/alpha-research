@@ -5,10 +5,10 @@ import json
 import uuid
 from pathlib import Path
 
-from .common import ResearchError, digest, dumps, now, snapshot
-from .engine import Engine
-from .memory import Memory
-from .validator import Validator
+from alpharesearch.common import ResearchError, digest, dumps, now, snapshot
+from alpharesearch.engine import Engine
+from alpharesearch.memory import Memory
+from alpharesearch.validator import Validator
 
 PROTOCOL='directed-reversal-vwap-v1'
 HOLDOUT_MODE='directed_fixed_comparisons_v1'
@@ -41,7 +41,7 @@ def fixed_candidates():
 
 
 def create_plan(config,study_id,output,candidates_output):
-    from .probe import _write_fresh
+    from alpharesearch.probe import _write_fresh
     if not isinstance(study_id,str) or not study_id.strip() or len(study_id)>120:
         raise ResearchError('提供稳定、非空的 study_id')
     if Path(output).exists() or Path(candidates_output).exists():raise ResearchError('预注册输出已存在；不覆盖原计划')
@@ -75,7 +75,7 @@ def load_plan(path,config):
 def execute_plan(config,plan_path,output,simulator=None,max_new_simulations=None,confirm_preview=None):
     """Stable study ID binds one run and its spent budget across restarts."""
     plan=load_plan(plan_path,config)
-    from .preview import preview,confirm
+    from alpharesearch.preview import preview,confirm
     estimate=preview(config,plan['candidates'],plan=plan)
     allowed=confirm(config,estimate,max_new_simulations,confirm_preview)
     memory=Memory(config['database'])

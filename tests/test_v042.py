@@ -1,3 +1,4 @@
+from fixtures.legacy_engine_auto_variants import enable_legacy_historical_fixture
 """Resume approval and corrupt-history regressions; all simulations are fixtures."""
 import copy
 import io
@@ -10,7 +11,7 @@ from unittest.mock import patch
 from test_system import Base,FixtureSimulator,fixture_result
 from alpharesearch.cli import main
 from alpharesearch.common import ResearchError,snapshot
-from alpharesearch.directed import create_plan,execute_plan
+from fixtures.legacy_directed import create_plan,execute_plan
 from alpharesearch.engine import Engine
 from alpharesearch.http import AmbiguousWrite
 from alpharesearch.memory import Memory,remote_result_complete
@@ -78,6 +79,10 @@ class MalformedHistoryTests(Base):
 
 
 class ResumeApprovalTests(Base):
+    def setUp(self):
+        super().setUp()
+        enable_legacy_historical_fixture(self)
+
     def engine(self,live=True):
         if live:self.live()
         simulator=FixtureSimulator();engine=Engine(self.config,simulator=simulator)
@@ -148,16 +153,15 @@ class ResumeApprovalTests(Base):
         self.assertEqual(result[0]['reason'],'invocation_budget_exhausted')
         self.assertEqual(sim.starts,[]);self.assertEqual(engine.memory.run(engine.run_id)['simulations'],0)
 
-    def test_sensitivity_and_queue_share_one_approval_cap(self):
+    def test_legacy_resume_preview_does_not_generate_implicit_variants(self):
         engine,sim=self.engine();self.queue(engine,'ts_mean(close,20)')
         value=preview_resume(self.config,engine.run_id)
-        self.assertEqual(value['new_simulations_needed'],3)
+        self.assertEqual(value['new_simulations_needed'],1)
         engine.resume(True,2,value['preview_sha256'])
-        self.assertEqual(len(sim.starts),2)
+        self.assertEqual(len(sim.starts),1)
         later=preview_resume(self.config,engine.run_id)
-        self.assertEqual(later['new_simulations_needed'],1)
-        engine.resume(True,1,later['preview_sha256'])
-        self.assertEqual(len(sim.starts),3);self.assertEqual(len(set(sim.starts)),3)
+        self.assertEqual(later['new_simulations_needed'],0)
+        self.assertEqual(len(sim.starts),1)
 
     def test_stale_task_state_invalidates_confirmation(self):
         engine,sim=self.engine();a=self.queue(engine);self.queue(engine,'rank(volume)')
@@ -179,15 +183,14 @@ class ResumeApprovalTests(Base):
                 '--confirm-preview',value['preview_sha256'],'--max-new-simulations','1'])
         self.assertEqual(len(sim.starts),1)
 
-    def test_cached_candidate_from_other_run_includes_missing_sensitivity(self):
+    def test_cached_candidate_from_other_run_does_not_implicitly_generate_variants(self):
         engine,sim=self.engine();tid=self.queue(engine,'ts_mean(close,20)');engine.execute(tid)
         later=Engine(self.config,simulator=sim);self.addCleanup(later.memory.close)
         self.queue(later,'ts_mean(close,20)')
         value=preview_resume(self.config,later.run_id)
-        self.assertEqual(value['new_simulations_needed'],2)
-        later.resume(True,1,value['preview_sha256'])
-        self.assertEqual(later.memory.run(later.run_id)['simulations'],1)
-        self.assertEqual(len(sim.starts),2)
+        self.assertEqual(value['new_simulations_needed'],0)
+        self.assertEqual(value['new_simulations_upper_bound'],0)
+        self.assertEqual(len(sim.starts),1)
 
     def test_uncertain_create_consumes_cap_and_stops_next_creation(self):
         class Lost(FixtureSimulator):

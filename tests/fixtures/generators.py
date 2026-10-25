@@ -23,7 +23,7 @@ class DemoDiscovery:
                  'family': family, 'parent_idea_id': None, 'change': '独立模板样例'}
                 for i, (expr, family) in enumerate(seeds[start:start+plan['ideas_per_cycle']], start)]
 
-from .discovery import approved_fields
+from alpharesearch.discovery import approved_fields
 
 class CampaignDemoDiscovery:
     """Diverse deterministic engineering fixtures; no empirical Alpha claims."""

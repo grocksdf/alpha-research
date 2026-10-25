@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alpha-research"
-version = "0.6.1"
-description = "Single-agent, deterministic-gated WorldQuant BRAIN research loop"
+version = "0.8.0"
+description = "LLM-only evidence-bound autonomous Alpha research and safety-gated BRAIN workflow"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
 alpha-research = "alpharesearch.cli:main"
+alpha-research-v08 = "alpharesearch.v08_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["alpharesearch*"]

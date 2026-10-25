@@ -13,7 +13,7 @@ from test_system import Base,FixtureSimulator,fixture_result
 from alpharesearch.brain import records
 from alpharesearch.cli import main
 from alpharesearch.common import ResearchError,digest,snapshot
-from alpharesearch.directed import create_plan,execute_plan,load_plan
+from fixtures.legacy_directed import create_plan,execute_plan,load_plan
 from alpharesearch.http import ApiError
 from alpharesearch.memory import Memory
 from alpharesearch.preview import preview,confirm,research_candidates
@@ -189,25 +189,26 @@ class PreviewTests(Base):
         return path,value
 
     def test_offline_preview_does_not_create_database_or_call_network(self):
-        candidates=research_candidates(self.config,'baseline')
+        candidates=json.loads((Path(__file__).parent/'fixtures/baseline.json').read_text(encoding='utf-8'))
         with patch('alpharesearch.http.JsonTransport.request',side_effect=AssertionError('HTTP')) as request:
             value=preview(self.config,candidates)
-        self.assertEqual(value['new_simulations_needed'],15);self.assertEqual(value['new_simulations_upper_bound'],15)
+        self.assertEqual(value['new_simulations_needed'],5);self.assertEqual(value['new_simulations_upper_bound'],5)
         self.assertFalse(Path(self.config['database']).exists());request.assert_not_called()
 
     def test_live_cli_dry_run_does_not_prompt_credentials_or_create_state(self):
-        self.live();buffer=io.StringIO()
-        with (patch('alpharesearch.cli.load_settings',return_value=self.config),patch('alpharesearch.cli.credentials') as credentials,
-              patch('alpharesearch.http.JsonTransport.request') as request,redirect_stdout(buffer)):
-            main(['run','--agent','baseline','--dry-run'])
-        value=json.loads(buffer.getvalue());self.assertEqual(value['network_requests'],0)
-        self.assertFalse(Path(self.config['database']).exists());credentials.assert_not_called();request.assert_not_called()
+        self.live()
+        with patch('alpharesearch.cli.load_settings',return_value=self.config), \
+             patch('alpharesearch.cli.credentials') as credentials:
+            with self.assertRaises(SystemExit):
+                main(['run','--agent','baseline','--dry-run'])
+        self.assertFalse(Path(self.config['database']).exists())
+        credentials.assert_not_called()
 
     def test_missing_live_confirmation_fails_before_login(self):
         self.live();buffer=io.StringIO()
         with patch('alpharesearch.cli.load_settings',return_value=self.config),patch('alpharesearch.cli.credentials') as credentials,redirect_stdout(buffer):
             with self.assertRaises(SystemExit):main(['run','--agent','baseline'])
-        credentials.assert_not_called();self.assertIn('--dry-run',buffer.getvalue())
+        credentials.assert_not_called();self.assertFalse(Path(self.config['database']).exists())
         self.assertFalse(Path(self.config['database']).exists())
 
     def test_llm_preview_reports_only_upper_bound_and_does_not_call_model(self):
@@ -246,7 +247,7 @@ class PreviewTests(Base):
             expression='rank(close)';tid,_=memory.add_trial(run,{'expression':expression,'hypothesis':'TEST','source':'fixture'},validator.validate(expression),'another-context')
             memory.claim(tid,15,digest('TEST_ONLY'),self.config['brain']['base_url']);memory.set_state(tid,'polling')
             before=memory.db.total_changes
-            value=preview(self.config,research_candidates(self.config,'baseline'))
+            value=preview(self.config,json.loads((Path(__file__).parent/'fixtures/baseline.json').read_text(encoding='utf-8')))
             self.assertTrue(value['creation_blocked']);self.assertEqual(value['remote_blockers'][0]['trial_id'],tid)
             with self.assertRaises(ResearchError):confirm(self.config,value,15,value['preview_sha256'])
             self.assertEqual(memory.db.total_changes,before)
@@ -255,7 +256,7 @@ class PreviewTests(Base):
     def test_old_schema_preview_requires_explicit_offline_migration(self):
         self.live();memory=Memory(self.config['database']);memory.close()
         db=sqlite3.connect(self.config['database']);db.execute('ALTER TABLE tasks DROP COLUMN remote_state');db.commit();db.close()
-        value=preview(self.config,research_candidates(self.config,'baseline'))
+        value=preview(self.config,json.loads((Path(__file__).parent/'fixtures/baseline.json').read_text(encoding='utf-8')))
         self.assertTrue(value['schema_migration_required'])
         with self.assertRaisesRegex(ResearchError,'migrate-state'):confirm(self.config,value,15,value['preview_sha256'])
         db=sqlite3.connect(self.config['database'])

@@ -15,12 +15,18 @@ from alpharesearch.memory import Memory
 from alpharesearch.validator import Validator
 from alpharesearch.campaign_core import (create_campaign_plan, validate_campaign_plan,
                                          validate_limits, CampaignStore)
-from alpharesearch.campaign_runner import (execute_campaign, control_campaign,
+from alpharesearch.campaign_runner import (execute_campaign as _execute_campaign, control_campaign,
                                            import_legacy_ideas)
-from alpharesearch._demo_fixtures import CampaignDemoDiscovery
+from fixtures.generators import CampaignDemoDiscovery
 from alpharesearch.campaign_overfit import _pearson, correlation_precheck
 
 ROOT=Path(__file__).resolve().parents[1]
+
+def execute_campaign(config, plan, limits=None, **kwargs):
+    # Explicit test-only injection; production no longer offers Demo formulas.
+    if plan.get('generator') == 'demo' and 'generator' not in kwargs:
+        kwargs['generator'] = CampaignDemoDiscovery(config)
+    return _execute_campaign(config, plan, limits, **kwargs)
 
 class TestCampaignV2(unittest.TestCase):
     def setUp(self):

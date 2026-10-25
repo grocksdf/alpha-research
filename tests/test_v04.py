@@ -11,7 +11,7 @@ from test_system import Base,fixture_result,FixtureSimulator
 from alpharesearch.brain import BrainSimulator,correlation,normalize_checks
 from alpharesearch.checks import summarize_checks
 from alpharesearch.common import ResearchError,digest,now,snapshot
-from alpharesearch.directed import create_plan,execute_plan,fixed_candidates
+from fixtures.legacy_directed import create_plan,execute_plan,fixed_candidates
 from alpharesearch.engine import Engine
 from alpharesearch.evaluator import evaluate
 from alpharesearch.evidence_audit import audit_existing_alphas,observe_pnl

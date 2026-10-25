@@ -70,7 +70,7 @@ class LiveDiscoveryIsolationTests(Base):
 
     def test_live_execute_rejects_any_injected_fixed_batch_before_side_effects(self):
         plan = self.setup_live()
-        from alpharesearch._demo_fixtures import DemoDiscovery
+        from fixtures.generators import DemoDiscovery
         with patch.object(DemoDiscovery, 'generate', side_effect=AssertionError('fixture invoked')):
             with self.assertRaises(ResearchError):
                 execute_plan(self.config, plan, Path(self.tmp.name)/'review.json',
@@ -81,7 +81,7 @@ class LiveDiscoveryIsolationTests(Base):
     def test_live_loop_injected_fixture_stops_before_generate(self):
         plan = self.setup_live()
         loop = self.new_loop(plan, limit=3)
-        from alpharesearch._demo_fixtures import DemoDiscovery
+        from fixtures.generators import DemoDiscovery
         with patch.object(DemoDiscovery, 'generate', side_effect=AssertionError('fixture invoked')) as called:
             loop.generator = DemoDiscovery()
             with self.assertRaises(ResearchError):
@@ -126,7 +126,7 @@ class LiveDiscoveryIsolationTests(Base):
     def test_no_silent_fallback_on_model_error(self):
         loop = self.new_loop(limit=3)
         self.agent(loop, [ApiError('OFFLINE forced model timeout')])
-        from alpharesearch._demo_fixtures import DemoDiscovery
+        from fixtures.generators import DemoDiscovery
         with patch.object(DemoDiscovery, 'generate', side_effect=AssertionError('fixture invoked')) as called:
             with self.assertRaises(ApiError):
                 loop.run()
@@ -140,7 +140,7 @@ class LiveDiscoveryIsolationTests(Base):
     def test_unexpected_provider_exception_pauses_without_fixture_fallback(self):
         loop = self.new_loop(limit=3)
         self.agent(loop, [RuntimeError('OFFLINE unexpected provider exception')])
-        from alpharesearch._demo_fixtures import DemoDiscovery
+        from fixtures.generators import DemoDiscovery
         with patch.object(DemoDiscovery, 'generate', side_effect=AssertionError('template invoked')) as seed:
             with self.assertRaises(RuntimeError):
                 loop.run()
@@ -257,7 +257,7 @@ class LiveDiscoveryIsolationTests(Base):
         self.setup_live()
         from alpharesearch.campaign_core import create_campaign_plan
         from alpharesearch.campaign_runner import execute_campaign
-        from alpharesearch._demo_fixtures import CampaignDemoDiscovery
+        from fixtures.generators import CampaignDemoDiscovery
         plan = create_campaign_plan(self.config, {'campaign_id':'LIVE_CAMPAIGN_BLOCKED',
             'objective':'OFFLINE block Live Campaign fixture', 'generator':'llm',
             'domains':['price_volume']})

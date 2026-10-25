@@ -1,3 +1,4 @@
+from fixtures.legacy_engine_auto_variants import enable_legacy_historical_fixture
 """Reproduced v0.5.0 gap, with zero Submit requests under forced evaluator success."""
 import copy
 from pathlib import Path
@@ -11,6 +12,10 @@ from alpharesearch.return_contract import submission_return_errors, review_retur
 
 
 class SubmissionContractTests(Base):
+    def setUp(self):
+        super().setUp()
+        enable_legacy_historical_fixture(self)
+
     def test_old_gates_do_not_allow_unknown_cost_semantics(self):
         result = fixture_result()
         self.assertEqual(submission_return_errors(result), [])

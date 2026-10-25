@@ -5,8 +5,6 @@ import uuid
 
 from .common import ResearchError, dumps, now
 
-TAGS={'reversion','momentum','value','quality','liquidity','volatility','sentiment','carry','other'}
-
 
 def search_fields(catalog,query,limit=10,approved_only=True):
     if not isinstance(query,str) or not 1<=len(query.strip())<=300 or type(limit)is not int or not 1<=limit<=30:
@@ -50,8 +48,8 @@ def notes(engine,limit=30):
 
 def tag_family(engine,intent_id,tags,reason):
     if intent_id not in {i['id'] for i in engine.memory.intents(engine.run_id)}: raise ResearchError('未知研究假设')
-    if not isinstance(tags,list) or not 1<=len(tags)<=4 or any(t not in TAGS for t in tags) or not isinstance(reason,str) or not 1<=len(reason)<=1000:
-        raise ResearchError('标签必须为预定义经济家族，附上简短依据')
+    if not isinstance(tags,list) or not 1<=len(tags)<=4 or any(not isinstance(t,str) or not t.strip() or len(t)>120 for t in tags) or not isinstance(reason,str) or not 1<=len(reason)<=1000:
+        raise ResearchError('标签必须为模型自行归纳的非空机制，附上依据')
     engine.memory.transaction(lambda:engine.memory.event(engine.run_id,'family_annotation',{'intent_id':intent_id,'tags':sorted(set(tags)),'reason':reason}))
     return {'intent_id':intent_id,'tags':tags,'economic_independence_verified':False}
 

@@ -9,7 +9,7 @@ from test_system import Base,FixtureSimulator,fixture_result
 from alpharesearch.cli import main
 from alpharesearch.common import ResearchError,digest
 from alpharesearch.engine import Engine
-from alpharesearch.evolution import create_plan,preview_plan,validate_plan
+from fixtures.legacy_evolution import create_plan,preview_plan,validate_plan
 from alpharesearch.return_contract import EvidenceError
 
 
@@ -93,11 +93,14 @@ class EvolutionSafetyTests(Base):
               patch('alpharesearch.cli.worker_lock',side_effect=AssertionError('worker lock')),
               patch('alpharesearch.http.JsonTransport.request',side_effect=AssertionError('HTTP')) as request,
               redirect_stdout(io.StringIO())):
-            main(['evolution-plan','--spec',str(spec),'--output',str(plan)])
-            main(['evolution-preview','--plan',str(plan)])
+            # The legacy evolution generator is no longer a product CLI.
+            with self.assertRaises(SystemExit):
+                main(['evolution-plan','--spec',str(spec),'--output',str(plan)])
+            with self.assertRaises(SystemExit):
+                main(['evolution-preview','--plan',str(plan)])
         request.assert_not_called();self.assertFalse(Path(self.config['database']).exists())
 
     def test_original_budget_unknown_post_and_serial_regressions_still_use_existing_engine(self):
         # The new planner deliberately has no separate create implementation.
-        import alpharesearch.evolution as evolution
+        from fixtures import legacy_evolution as evolution
         self.assertFalse(hasattr(evolution,'execute_plan'));self.assertFalse(hasattr(evolution,'submit'))

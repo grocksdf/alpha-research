@@ -1,3 +1,4 @@
+from fixtures.legacy_engine_auto_variants import enable_legacy_historical_fixture
 """Submit and statistics regressions for the independently reported v0.6.0 gaps."""
 import copy
 from pathlib import Path
@@ -43,6 +44,10 @@ def mutate(result, case):
 
 
 class SubmissionRegressionTests(Base):
+    def setUp(self):
+        super().setUp()
+        enable_legacy_historical_fixture(self)
+
     def engine_with_review(self):
         self.live(); simulator = FixtureSimulator(); engine = Engine(self.config, simulator=simulator)
         self.addCleanup(engine.memory.close)

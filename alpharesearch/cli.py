@@ -107,26 +107,12 @@ def main(argv=None):
         analysis.add_argument('--manifest',required=True);analysis.add_argument('--protocol',required=True)
         analysis.add_argument('--output',required=True)
         if command=='research-report':analysis.add_argument('--review',help='已有 Engine 评审包；只引用原准入结论')
-    evolution_plan=sub.add_parser('evolution-plan',help='冻结单维度小范围计划；默认新增预算 0，不提供执行入口')
-    evolution_plan.add_argument('--spec',required=True);evolution_plan.add_argument('--output',required=True)
-    evolution_preview=sub.add_parser('evolution-preview',help='离线只读去重估算；不授权新建 Simulation')
-    evolution_preview.add_argument('--plan',required=True);evolution_preview.add_argument('--output')
-    directed=sub.add_parser('directed-plan',help='冻结六公式/单参数变更/6 次模拟上限；不调用账户')
-    directed.add_argument('--study-id',required=True)
-    directed.add_argument('--output',default='state/directed-plan.json')
-    directed.add_argument('--candidates-output',default='state/directed-candidates.json')
-    directed_run=sub.add_parser('directed-run',help='执行/恢复已冻结六公式设计；稳定 study_id 不重置预算')
-    directed_run.add_argument('--plan',required=True)
-    directed_run.add_argument('--report',default='state/directed-review.json')
-    directed_run.add_argument('--dry-run',action='store_true',help='离线只读预览去重、新建上限和预算，不登录')
-    directed_run.add_argument('--max-new-simulations',type=int,help='本次最多新建数，含失败和未知响应')
-    directed_run.add_argument('--confirm-preview',help='明确确认 --dry-run 输出的 preview_sha256')
     reconcile_probe=sub.add_parser('reconcile-probe',help='人工确认服务端已创建后绑定模拟 Location；不重发 POST')
     reconcile_probe.add_argument('record');reconcile_probe.add_argument('--location',required=True)
     sync = sub.add_parser("sync-catalog", help="登录并同步当前账户目录，不运行模拟")
     sync.add_argument("--output", default="config/catalog.live.json")
-    run = sub.add_parser("run", help="单 LLM 或固定规则基线")
-    run.add_argument("--agent", choices=("baseline", "llm", "file"), default="baseline")
+    run = sub.add_parser("run", help="旧单 Agent 路径：仅授权 LLM 或 Demo 显式文件")
+    run.add_argument("--agent", choices=("llm", "file"), default="llm")
     run.add_argument("--candidates", help="JSON batch for --agent file; every candidate is validated")
     run.add_argument("--papers", help="显式提供的 UTF-8 本地论文摘要/研究文本")
     run.add_argument("--report", default="state/latest-review.json")
@@ -192,6 +178,8 @@ def main(argv=None):
     engine = None
     try:
         config = load_settings(args.config)
+        if config['mode']=='live' and args.command in ('autonomy-plan','autonomy-run'):
+            raise ResearchError('v0.8 正式 Live Autoresearch 禁止旧的封闭研究域计划；仅接受独立 LLM-only 授权研究入口')
         if args.command == 'autonomy-plan':
             from .autonomy import create_plan
             from .probe import _write_fresh
@@ -231,7 +219,7 @@ def main(argv=None):
                                 'shortlisted': len(value['shortlist'])})
             return
         if args.command in ('analysis-freeze','verify-returns','attempt-history','robustness-audit','selection-bias-audit',
-                            'research-report','evolution-plan','evolution-preview'):
+                            'research-report'):
             from .analysis_protocol import read_json,load_manifest,freeze_protocol
             from .probe import _write_fresh
             if args.command=='analysis-freeze':value=freeze_protocol(read_json(args.spec))
@@ -242,9 +230,6 @@ def main(argv=None):
                 from .return_contract import review_return_document
                 value={'mode':'offline_return_contract_review','series':[review_return_document(d)[1] for d in load_manifest(args.manifest)['series']],
                        'network_requests':0,'simulation_posts':0,'submit_posts':0,'database_mutated':False}
-            elif args.command in ('evolution-plan','evolution-preview'):
-                from .evolution import create_plan,preview_plan
-                value=create_plan(config,read_json(args.spec)) if args.command=='evolution-plan' else preview_plan(config,read_json(args.plan))
             else:
                 from .research_report import analyze_manifest,research_report
                 manifest=load_manifest(args.manifest);protocol=read_json(args.protocol)
@@ -264,20 +249,11 @@ def main(argv=None):
                 estimate=preview_resume(config,args.run_id,args.continue_research)
                 if args.dry_run:print_json(estimate);return
                 confirm(config,estimate,args.max_new_simulations,args.confirm_preview)
-        if args.command in ('run','directed-run'):
+        if args.command=='run':
             from .preview import preview,confirm,research_candidates
-            if args.command=='directed-run':
-                from .directed import load_plan
-                plan=load_plan(args.plan,config)
-                estimate=preview(config,plan['candidates'],plan=plan)
-            else:
-                estimate=preview(config,research_candidates(config,args.agent,args.candidates),papers_path=args.papers)
+            estimate=preview(config,research_candidates(config,args.agent,args.candidates),papers_path=args.papers)
             if args.dry_run:print_json(estimate);return
             allowed=confirm(config,estimate,args.max_new_simulations,args.confirm_preview)
-        if args.command=='directed-plan':
-            from .directed import create_plan
-            value=create_plan(config,args.study_id,args.output,args.candidates_output)
-            print_json({'output':args.output,'candidates':args.candidates_output,'plan_sha256':value['plan_sha256'],'max_simulations':6});return
         if args.command=='field-search':
             from .research import search_fields
             print_json(search_fields(config['catalog_data'],args.query,args.limit,not args.all_fields));return
@@ -402,7 +378,7 @@ def main(argv=None):
                     memory.close()
                 return
             simulator = None
-            if args.command == "sync-catalog" or (config["mode"] == "live" and args.command in ("run", "resume", "submit", "resume-submit",'refresh-evidence','recover-trial','directed-run')):
+            if args.command == "sync-catalog" or (config["mode"] == "live" and args.command in ("run", "resume", "submit", "resume-submit",'refresh-evidence','recover-trial')):
                 credentials()
                 simulator = BrainSimulator(config)
                 identity = simulator.login()
@@ -416,12 +392,9 @@ def main(argv=None):
                     return
                 if config["catalog_data"].get("account_id") != identity["user_id"]:
                     raise ResearchError("登录账户与字段目录账户不一致，请重新同步目录")
-                if args.command in ('run','directed-run'):
+                if args.command in ('run',):
                     from .probe import require_smoke_receipt
                     require_smoke_receipt(config,identity['user_id'])
-            if args.command=='directed-run':
-                from .directed import execute_plan
-                print_json(execute_plan(config,args.plan,args.report,simulator,args.max_new_simulations,args.confirm_preview));return
             if args.command=='recover-trial':
                 if config['mode']!='live':raise ResearchError('仅用于真实任务的 GET 对账')
                 from .reconciliation import recover_saved_trial
@@ -454,17 +427,13 @@ def main(argv=None):
                     from .agent import ResearchAgent
                     papers = Path(args.papers).read_text(encoding="utf-8") if args.papers else "No papers supplied; explain priors and do not invent citations."
                     print_json(ResearchAgent(engine).run(papers))
-                else:
-                    if args.agent == "file":
-                        from .batch import read_candidates
-                        if not args.candidates:
-                            raise ResearchError("--agent file requires --candidates PATH")
-                        baselines = read_candidates(args.candidates)
-                    else:
-                        if args.candidates:
-                            raise ResearchError("--candidates is only supported with --agent file")
-                        baselines = json.loads((Path(config["root"])/"examples/baseline.json").read_text(encoding="utf-8"))
-                    for candidate in baselines:
+                elif args.agent == "file" and config['mode'] == 'demo':
+                    # Explicit user file for isolated Demo testing only. No
+                    # built-in fallback, baseline, fixed pool or seed source.
+                    from .batch import read_candidates
+                    if not args.candidates:
+                        raise ResearchError('--agent file requires --candidates PATH')
+                    for candidate in read_candidates(args.candidates):
                         run_counters = engine.memory.run(engine.run_id)
                         if run_counters["proposals"] >= config["rules"]["max_proposals_per_run"]:
                             break
@@ -472,6 +441,8 @@ def main(argv=None):
                                 engine.context,engine.validator.validate(candidate['expression']).fingerprint):
                             continue
                         print_json(engine.propose(**candidate))
+                else:
+                    raise ResearchError('正式运行只能使用已授权的真实 LLM Agent')
                 review = engine.write_report(args.report)
                 print_json({"report": args.report, "shortlisted": len(review["shortlist"]), "counts": review["counts"]})
             elif args.command == "resume":

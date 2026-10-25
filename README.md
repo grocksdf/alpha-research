@@ -407,3 +407,31 @@ python -m alpharesearch submit RUN_ID TRIAL_ID --review state/ai-review.json --a
 - `docs/references.md`：核查过的上游项目和方法资料。
 
 不可覆盖的历史表与审计链用于发现意外修改，不是独立托管的防篡改账本。每轮记录代码哈希、Git commit（存在时）和运行时版本；可自行 `git init` 后按自己的仓库流程提交源码，`state/` 与凭据不进入 Git。源码包附校验清单，运行数据不打包。
+
+
+## v0.8: LLM-only autonomous research (offline Demo)
+
+The new, separately installed `alpha-research-v08` command is a source-verified
+Explorer → Strategist → Worker → Critic → Playbook loop with **no built-in Alpha
+formula seeds, economic mechanism enum or automatic parameter variants**.
+
+```bash
+python -m alpharesearch.v08_cli --config config/settings.toml \
+  --database state/v08-fresh.sqlite3 plan \
+  --project-id offline-new --objective 'Discover and falsify new authorized mechanisms' \
+  --output state/v08-plan.json
+
+# Requires a real local tools-capable LLM on loopback, configured in [llm],
+# and LLM_API_KEY. Does NOT contact BRAIN in Demo mode.
+python -m alpharesearch.v08_cli --config config/settings.toml \
+  --database state/v08-fresh.sqlite3 drive --plan state/v08-plan.json --batches 3
+```
+
+No LLM endpoint/key means **no autonomous candidate**; Scripted offline
+fixtures are only under `tests/`, never a product candidate fallback.
+Original v0.6 frozen runs and submission gates are preserved.
+
+See `docs/v08-hardcoded-audit.md`, `docs/v08-architecture-playbook.md`,
+`docs/v08-experiments-ab.md`, `docs/v08-next-brain-validation.md`, and
+`docs/v08-compatibility.md`. Complete offline safety regression:
+`python verification/v08_module_matrix.py --repo . --report-dir /tmp/v08-check`.

@@ -1,3 +1,4 @@
+from fixtures.legacy_engine_auto_variants import enable_legacy_historical_fixture
 """Offline contracts for autonomous research; no real model/account/market data."""
 import copy
 import json
@@ -7,11 +8,20 @@ from unittest.mock import patch
 
 from test_system import Base, FixtureSimulator, ScriptedTransport
 from alpharesearch.autonomy import (create_plan, validate_plan, preview_plan, open_engine,
-    AutonomousLoop, execute_plan, recover_plan)
+    AutonomousLoop, execute_plan as _execute_plan, recover_plan)
 from alpharesearch.common import ResearchError, digest
 from alpharesearch.discovery import DiscoveryAgent, coverage, validate_idea, similarity
 from alpharesearch.engine import Engine
 from alpharesearch.http import ApiClient, ApiError, PollTimeout, Response
+from fixtures.generators import DemoDiscovery
+
+def execute_plan(config, plan, report_path, simulator=None, maximum=None,
+                 confirmation=None, steps=None, generator=None):
+    # Synthetic seeds live exclusively in tests/ and are explicitly injected.
+    if generator is None and config['mode']=='demo' and plan.get('generator')=='demo':
+        generator=DemoDiscovery()
+    return _execute_plan(config, plan, report_path, simulator, maximum,
+                         confirmation, steps, generator)
 
 
 def idea(expression='-rank(ts_delta(close, 5))', **changes):
@@ -32,6 +42,10 @@ class BatchGenerator:
 
 
 class AutonomyTests(Base):
+    def setUp(self):
+        super().setUp()
+        enable_legacy_historical_fixture(self)
+
     def plan(self, **changes):
         return create_plan(self.config, {'study_id': 'TEST_STUDY', 'objective': 'TEST discovery loop',
             'generator': 'demo' if self.config['mode'] == 'demo' else 'llm', 'max_simulations': 6,

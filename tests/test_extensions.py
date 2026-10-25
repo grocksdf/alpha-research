@@ -1,3 +1,4 @@
+from fixtures.legacy_engine_auto_variants import enable_legacy_historical_fixture
 import copy
 import csv
 import itertools
@@ -26,6 +27,10 @@ from alpharesearch import holdout_registry as register
 
 
 class ProvenanceRegressionTests(Base):
+    def setUp(self):
+        super().setUp()
+        enable_legacy_historical_fixture(self)
+
     def engine(self):
         self.config['rules']['max_simulations_per_run']=15
         sim=FixtureSimulator();engine=Engine(self.config,simulator=sim)

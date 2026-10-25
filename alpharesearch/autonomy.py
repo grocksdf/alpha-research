@@ -375,12 +375,10 @@ class AutonomousLoop:
                 if can_generate and remaining > 0:
                     if self.generator is None:
                         if self.plan['generator'] == 'demo':
-                            if self.engine.config['mode'] != 'demo':
-                                raise ResearchError('Live 路径严禁使用固定模板生成器')
-                            from ._demo_fixtures import DemoDiscovery
-                            self.generator = DemoDiscovery()
-                        else:
-                            self.generator = DiscoveryAgent(self.engine)
+                            # Historical fixture campaigns are test-only; no
+                            # product runtime imports a formula seed module.
+                            raise ResearchError('旧 Demo 固定候选入口已下线；测试须显式注入 tests/ fixtures')
+                        self.generator = DiscoveryAgent(self.engine)
                     self.record('cycle', {'cycle': cycles+1, 'status': 'requested'})
                     if self.engine.config['mode'] == 'live' and (
                             type(self.generator) is not DiscoveryAgent or

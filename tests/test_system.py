@@ -1,4 +1,5 @@
 from __future__ import annotations
+from fixtures.legacy_engine_auto_variants import enable_legacy_historical_fixture
 
 import copy
 import csv
@@ -214,7 +215,7 @@ class ValidatorTests(Base):
         self.validator = Validator(self.config["catalog_data"], self.config["scope"], self.config["rules"])
 
     def test_baselines_and_neighbors(self):
-        for item in json.loads((ROOT/"examples/baseline.json").read_text(encoding="utf-8")):
+        for item in json.loads((ROOT/"tests/fixtures/baseline.json").read_text(encoding="utf-8")):
             original = self.validator.validate(item["expression"])
             neighbors = self.validator.neighbors(item["expression"])
             self.assertEqual(len(neighbors), 2)
@@ -399,6 +400,10 @@ class EvaluationTests(Base):
 
 
 class EngineTests(Base):
+    def setUp(self):
+        super().setUp()
+        enable_legacy_historical_fixture(self)
+
     def engine(self, live=False, simulator=None):
         if live:
             self.live()
@@ -408,7 +413,7 @@ class EngineTests(Base):
 
     def test_end_to_end_baseline_15_trials(self):
         engine = self.engine()
-        for candidate in json.loads((ROOT/"examples/baseline.json").read_text(encoding="utf-8")):
+        for candidate in json.loads((ROOT/"tests/fixtures/baseline.json").read_text(encoding="utf-8")):
             engine.propose(**candidate)
         report = engine.report()
         self.assertEqual(report["counts"]["simulations"], 15)
@@ -474,10 +479,11 @@ class EngineTests(Base):
         proposal = {"expression":"ts_mean(close,20)", "hypothesis":"hyp", "source":"test"}
         trial_id,_=engine.memory.add_trial(engine.run_id,proposal,engine.validator.validate(proposal["expression"]),engine.context)
         engine.execute(trial_id)
+        # v0.8 does not create implicit parameter variants after recovery.
         engine.resume(continue_research=True)
-        self.assertEqual(engine.memory.run(engine.run_id)["simulations"], 3)
+        self.assertEqual(engine.memory.run(engine.run_id)["simulations"], 1)
         engine.resume(continue_research=True)
-        self.assertEqual(engine.memory.run(engine.run_id)["simulations"], 3)
+        self.assertEqual(engine.memory.run(engine.run_id)["simulations"], 1)
 
     def test_immutable_records_and_chain(self):
         engine = self.engine()
@@ -595,6 +601,10 @@ class EngineTests(Base):
 
 
 class V011RegressionTests(Base):
+    def setUp(self):
+        super().setUp()
+        enable_legacy_historical_fixture(self)
+
     def test_pareto_domination_before_family_cap(self):
         def item(tid, turnover):
             return {"trial_id": tid, "family": "same", "self_correlation": 0.2,

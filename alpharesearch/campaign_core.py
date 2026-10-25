@@ -53,7 +53,7 @@ def create_campaign_plan(config, spec):
     if not isinstance(spec, dict) or set(spec) - ALLOWED_SPEC:
         raise ResearchError("campaign 计划有未知字段")
     data = {
-        "generator": "demo", "domains": list(DOMAINS), "research_notes": "",
+        "generator": "llm", "domains": list(DOMAINS), "research_notes": "",
         "lifecycle": "continuous", "max_total_simulations": None,
         "quality_goal_count": None, "ideas_per_cycle": 3, "queue_low_watermark": 2,
         "breadth_before_depth": 3, "max_depth_per_batch": 1,

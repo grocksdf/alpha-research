@@ -350,13 +350,9 @@ class CampaignRunner:
     def _generate(self):
         if self.generator is None:
             if self.plan["generator"] == "demo":
-                if self.engine.config['mode'] != 'demo':
-                    raise ResearchError('Live 无权载入 Campaign 测试种子')
-                from ._demo_fixtures import CampaignDemoDiscovery
-                self.generator = CampaignDemoDiscovery(self.engine.config)
-            else:
-                self.generator = CampaignDiscoveryAgent(
-                    self.engine,self.plan,self.limits,self.started)
+                raise ResearchError('旧 Campaign Demo 模板入口已下线；仅允许测试工具显式注入 fixtures')
+            self.generator = CampaignDiscoveryAgent(
+                self.engine,self.plan,self.limits,self.started)
         model_request = self.plan["generator"] == "llm"
         if self._resources(require_llm=model_request):
             return False
@@ -486,91 +482,15 @@ class CampaignRunner:
                                   "synthetic": True, "market_performance": False})
 
     def _run_depth(self, item):
-        tid = item["trial_id"]
-        if not tid or self.engine.memory.trial(tid)["state"] != "completed":
-            self.store.move(item["id"], "deferred", "l2", "base_result_missing")
-            return
-        self.store.move(item["id"], "testing", "l2", "L2_selected_depth")
-        expression = item["idea"]["expression"]
-        neighbors = self.engine.validator.neighbors(expression)[:self.plan["max_sensitivity_variants"]]
-        pending = False
-        for candidate in neighbors:
-            if self.depth_in_run >= self.plan["max_depth_per_batch"]:
-                pending = True
-                break
-            val = self.engine.validator.validate(candidate)
-            link = self.store.db.execute(
-                "SELECT status,trial_id FROM campaign_depth WHERE campaign_id=? "
-                "AND idea_id=? AND formula_hash=?", (self.cid, item["id"], val.fingerprint)).fetchone()
-            if link and link["status"] == "completed":
-                continue
-            if self._available() <= 0:
-                pending = True
-                break
-            existing = self.engine.memory.existing_trial(self.engine.context, val.fingerprint)
-            if existing and self.engine.memory.trial(existing)["state"] != "completed":
-                pending = True
-                self._record("depth_blocked", {"idea_id": item["id"],
-                                               "fingerprint": val.fingerprint,
-                                               "reason": "external_or_prior_run_unfinished"})
-                break
-            if existing:
-                neighbor_tid = existing
-            else:
-                self.engine.memory.consume(self.engine.run_id, "proposals",
-                                           self.engine.config["rules"]["max_proposals_per_run"])
-                neighbor_tid, created = self.engine.memory.add_trial(
-                    self.engine.run_id,
-                    {"expression": candidate, "hypothesis": dumps({"parent_idea_id": item["id"]}),
-                     "source": "campaign_deterministic_sensitivity"},
-                    val, self.engine.context, kind="sensitivity", parent_id=tid)
-                if created:
-                    outcome = self.engine.execute(neighbor_tid)
-                    if outcome.get("state") != "completed":
-                        raise ResearchError("参数敏感性实验未完成；停止进一步请求")
-            # Link across runs without modifying the old trial or its frozen plan.
-            self.engine.memory.transaction(lambda: self.engine.memory.event(
-                self.engine.run_id, "sensitivity_link",
-                {"parent_id": tid, "neighbor_id": neighbor_tid, "campaign": self.cid}))
-            for intent in self.engine.memory.intents(trial_id=tid):
-                self.engine.memory.link_sensitivity(intent["id"], neighbor_tid,
-                    digest({"expressions": self.engine.validator.neighbors(expression),
-                            "scope": self.engine.config["scope"]}))
-            def record():
-                self.store.db.execute(
-                    "INSERT OR IGNORE INTO campaign_depth VALUES(?,?,?,?,?,?)",
-                    (self.cid, item["id"], val.fingerprint, neighbor_tid, "completed", now()))
-                self.store._log(self.cid, "depth_result",
-                                {"idea_id": item["id"], "neighbor_trial_id": neighbor_tid,
-                                 "fingerprint": val.fingerprint}, self.engine.run_id)
-            self.engine.memory.transaction(record)
-            self.depth_in_run += int(existing is None)
-            self.actions += 1
-        completed = self.store.db.execute(
-            "SELECT count(*) FROM campaign_depth WHERE campaign_id=? AND idea_id=? AND status='completed'",
-            (self.cid, item["id"])).fetchone()[0]
-        complete = not pending and completed >= len(neighbors)
-        if not complete:
-            self.store.move(item["id"], "evaluated", "l2", "L2_partial_depth_more_batches_needed")
-            return
-        # Original evaluation contract remains untouched. A synthetic demo score
-        # can only mark an engineering candidate, never empirical performance.
-        evaluation = self.engine.evaluate_trial(tid)
-        evidence = (self.engine.memory.latest(tid) or {}).get("metrics", {})
-        passing = _metrics_good(evidence, self.engine.config["policy"])
-        passing = passing and completed >= self.engine.config["policy"].get("min_sensitivity_neighbors",2)
-        # Live independent proof/correlation/holdout is deliberately unavailable here.
-        target_state = "promising" if passing and self.engine.config["mode"] == "demo" else "evaluated"
-        self.store.move(item["id"], target_state, "l3",
-                        "synthetic_engineering_candidate_not_market_alpha" if target_state == "promising"
-                        else "L2_insufficient_or_unverified_evidence")
-        self._record("l2_assessment", {
-            "idea_id": item["id"], "trial_id": tid,
-            "fixed_evaluator_rejections": evaluation.get("rejections", []),
-            "missing": evaluation.get("missing", []),
-            "independent_holdout": False, "walk_forward_market_proven": False,
-            "return_correlation_precheck": "unavailable_without_verified_IS_returns",
-            "synthetic": True})
+        """Old depth generator retired: a future LLM Worker must author trials.
+
+        A historical study remains auditable. No deterministic lookback
+        perturbations are permitted to create a new Alpha in v0.8.
+        """
+        self.store.move(item['id'], 'deferred', 'l2',
+            'requires_new_llm_authored_robustness_hypothesis')
+        self._record('depth_retired', {'idea_id':item['id'],
+             'reason':'no_fixed_parameter_variant_generator'})
 
     def _recover_stale(self):
         # Never resubmit queued trials belonging to an old run, and never

@@ -1,0 +1,10 @@
+# v0.8 compatibility and migration notes
+
+- **Removed:** production `DemoDiscovery` and `CampaignDemoDiscovery` formula seeds, deterministic parameter-variant creation, `directed` and `evolution` generator modules, built-in baseline candidate file and legacy CLI generators (`directed-*`, `evolution-*`, `run --agent baseline`).
+- **Moved to test-only fixtures:** `tests/fixtures/{generators,baseline.json,legacy_directed.py,legacy_evolution.py,legacy_engine_auto_variants.py}`. Product cannot import them. Historical safety regression tests explicitly opt into legacy fixture behavior and are **not** evidence that the v0.8 product still generates parameter variants.
+- **Preserved:** old hashed SQLite experiments, immutable event records, account scope and authentication, PIT/AST/field restrictions, fixed verification contract for historical studies, cost budgets, manual Submit gate and independent holdout protocol. None of the historical SQLite files were read or modified.
+- **New:** `alpha-research-v08` separate CLI with strictly new project database, `autoresearch_v08.py` LLM-only 5-role protocol, immutable role payloads, continuous project lifecycle and multi-run Playbook. No precomputed economic family enumeration.
+- **Legacy `autonomy-run` in Live** now rejected at production CLI boundary. Legacy Demo studies may be reviewed or tested under their matching original snapshot and dedicated fixture. No old Run may be resumed under a different code hash by manually editing hashes.
+- **Live BRAIN execution is not enabled** by this release. Real local LLM in offline Demo is possible with loopback + explicit model authorization; absent that capability, the operation safely fails rather than invents an Alpha.
+
+The Git branch created from the supplied ZIP is locally initialized. It is **not** the actual remote GitHub HEAD, so pushing to a remote requires human review of upstream changes and a real project remote branch.

@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import re
 
-from .common import digest, now, snapshot
-from .preview import preview
-from .return_contract import check, sha, text_field
-from .validator import Validator
+from alpharesearch.common import digest, now, snapshot
+from alpharesearch.preview import preview
+from alpharesearch.return_contract import check, sha, text_field
+from alpharesearch.validator import Validator
 
 PROTOCOL = 'bounded-evolution-plan-v1'
 

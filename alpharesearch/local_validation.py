@@ -297,8 +297,8 @@ def freeze(panel_path,candidates_path,plan_path,config,ledger_path,output):
     candidates=json.loads(Path(candidates_path).read_text(encoding="utf-8"));plan=validate_plan(json.loads(Path(plan_path).read_text(encoding="utf-8")))
     if not isinstance(candidates,list) or not 1<=len(candidates)<=20 or not all(isinstance(c,dict) and isinstance(c.get('expression'),str) for c in candidates):raise ResearchError('预注册需 1..20 个公式')
     if plan.get('holdout_mode')=='directed_fixed_comparisons_v1':
-        from .directed import fixed_candidates
-        if candidates!=fixed_candidates():raise ResearchError('定向留出必须冻结完整六公式设计与四个比较对，禁止事后筛选')
+        from .historical_contract import verify_historical_fixed_design
+        verify_historical_fixed_design(candidates)
     validator=Validator(config['catalog_data'],config['scope'],config['rules'])
     if plan['delay']!=config['scope']['delay']:raise ResearchError('本地 Delay 必须与冻结研究范围一致')
     panel=Panel(panel_path,before=plan['holdout_start']);signals=prepare(panel,candidates,validator)
@@ -399,8 +399,8 @@ def final_holdout(manifest_path,ledger_path):
             indices=[i for i,d in enumerate(panel.dates[:-1]) if plan['holdout_start']<=d and panel.dates[i+1]<=plan['holdout_end']]
             if len(indices)<plan.get('min_holdout_observations',20):raise ResearchError('留出期观测不足')
             if comparison:
-                from .directed import fixed_candidates
-                if m['candidates']!=fixed_candidates():raise ResearchError('定向验证公式设计不一致')
+                from .historical_contract import verify_historical_fixed_design
+                verify_historical_fixed_design(m['candidates'])
                 metrics={c['key']:evaluate_schedule(panel,signals,[(i,validator.validate(c['expression']).fingerprint) for i in indices],plan)['metrics'] for c in m['candidates']}
                 pairs=[]
                 for c in m['candidates']:

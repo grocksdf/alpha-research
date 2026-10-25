@@ -12,7 +12,6 @@ from .agent import ResearchAgent, tool
 from .common import ResearchError, digest, dumps
 from .formula_quality import validate_units
 from .proposal_audit import begin, captured, failure, verify_source
-from .research import TAGS
 from .validator import InvalidExpression, OPERATORS
 
 DOMAINS = ('price_volume', 'fundamental', 'microstructure', 'sentiment')
@@ -49,8 +48,9 @@ def validate_idea(engine, idea, domains, parents):
         if not isinstance(idea[key], str) or not idea[key].strip() or len(idea[key]) > maximum:
             raise ResearchError('假设字段为空或过长：'+key)
     if (not isinstance(idea['domain'], str) or not isinstance(idea['family'], str)
-            or idea['domain'] not in domains or idea['family'] not in TAGS):
-        raise ResearchError('研究方向或经济家族不在冻结范围内')
+            or idea['domain'] not in domains or not idea['family'].strip()
+            or len(idea['family']) > 120):
+        raise ResearchError('研究方向不在授权范围或经济机制标签无效')
     if idea['expected_sign'] not in ('positive', 'negative', 'conditional'):
         raise ResearchError('预期符号必须明确')
     if type(idea['horizon_days']) is not int or not 1 <= idea['horizon_days'] <= engine.config['rules']['max_window']:
@@ -101,7 +101,7 @@ class DiscoveryAgent(ResearchAgent):
             'mechanism': {'type': 'string'}, 'expected_sign': {'type': 'string', 'enum': ['positive', 'negative', 'conditional']},
             'horizon_days': {'type': 'integer'}, 'falsification': {'type': 'string'},
             'expression': {'type': 'string'}, 'source': {'type': 'string'},
-            'family': {'type': 'string', 'enum': sorted(TAGS)},
+            'family': {'type': 'string', 'maxLength': 120},
             'parent_idea_id': {'type': ['string', 'null']}, 'change': {'type': 'string'}}
         batch_tool = tool('research_batch', 'Propose economically distinct hypotheses and legal formulas; never execute.',
             {'ideas': {'type': 'array', 'maxItems': plan['ideas_per_cycle'],

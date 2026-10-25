@@ -13,12 +13,11 @@ from .validator import Validator
 
 def research_candidates(config,agent,path=None):
     if agent=='llm':return None
-    if agent=='file':
+    if agent=='file' and config['mode']=='demo':
         if not path:raise ResearchError('--agent file 需要 --candidates')
         from .batch import read_candidates
         return read_candidates(path)
-    if path:raise ResearchError('--candidates 只适用于 file agent')
-    return json.loads((Path(config['root'])/'examples/baseline.json').read_text(encoding='utf-8'))
+    raise ResearchError('固定/基线候选入口已关闭；正式研究只允许授权 LLM')
 
 
 def preview(config,candidates,*,plan=None,papers_path=None,lookup_study=True):
@@ -27,8 +26,7 @@ def preview(config,candidates,*,plan=None,papers_path=None,lookup_study=True):
     expressions={}
     if candidates is not None:
         for c in candidates[:config['rules']['max_proposals_per_run']]:
-            variants=[c['expression']]
-            if plan is None:variants+=validator.neighbors(c['expression'])
+            variants=[c['expression']]  # No generated parameter variants.
             for expression in variants:
                 valid=validator.validate(expression)
                 expressions.setdefault(valid.fingerprint,{'expression':expression,'fingerprint':valid.fingerprint})
@@ -158,7 +156,9 @@ def preview_resume(config,run_id,continue_research=True):
                 row=db.execute(f'''SELECT t.expression,t.run_id,q.state,{remote} AS remote_state FROM trials t JOIN tasks q ON q.trial_id=t.id
                     WHERE t.id=?''',(tid,)).fetchone()
                 if row and (row['state']=='completed' or (row['run_id']==run_id and (row['state'] in ('queued','paused','polling','dispatching','uncertain') or row['remote_state']=='unresolved'))):
-                    for expression in validator.neighbors(row['expression']):register(expression,'parameter_sensitivity:'+tid)
+                    # Existing sensitivity results remain in the history; no
+                    # new deterministic formula may be generated on resume.
+                    pass
         if config['mode']=='live':
             account=config['catalog_data'].get('account_id')
             if not account:raise ResearchError('live 预览缺少账户身份')

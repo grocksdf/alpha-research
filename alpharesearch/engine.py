@@ -207,41 +207,27 @@ class Engine:
         trial_id, created = self.memory.add_trial(self.run_id, proposal, valid, self.context, parent_id=parent_id)
         intent_id=self.memory.add_intent(self.run_id,trial_id,hypothesis,source,parent_intent_id)
         if not created:
-            self.ensure_sensitivity(trial_id)
             return {"trial_id": trial_id,'intent_id':intent_id, "state": "duplicate", "shared_state":self.memory.trial(trial_id)['state'], "metrics": (self.memory.latest(trial_id) or {}).get("metrics", {})}
         outcome = self.execute(trial_id)
         outcome['intent_id']=intent_id
-        self.ensure_sensitivity(trial_id)
+        # v0.8: never fabricate formula variants after a model proposal.
+        # Historical robustness links can still be checked read-only.
         result = self.memory.latest(trial_id)
         if result:
             outcome["evaluation"] = self.evaluate_trial(trial_id)
         return outcome
 
     def ensure_sensitivity(self, trial_id):
-        if self.memory.db.execute('SELECT 1 FROM directed_studies WHERE run_id=?',(self.run_id,)).fetchone():
-            return
-        trial = self.memory.trial(trial_id)
-        intents=[i for i in self.memory.intents(self.run_id,trial_id) if i['state']=='active']
-        if not intents and trial['run_id']==self.run_id and trial['kind']=='candidate':
-            # Backfill old/directly-created jobs once, without rewriting original records.
-            self.memory.migrate_intents()
-            intents=[i for i in self.memory.intents(self.run_id,trial_id) if i['state']=='active']
-        if trial["state"] != "completed" or not intents:
-            return
-        design_hash=digest({'expressions':self.validator.neighbors(trial['expression']),'scope':self.config['scope']})
-        # The evaluator, not the Agent, selects these perturbations; each consumes budget.
-        for expression in self.validator.neighbors(trial["expression"]):
-            neighbor = {"expression": expression, "hypothesis": trial["hypothesis"], "source": "deterministic_parameter_sensitivity"}
-            val = self.validator.validate(expression)
-            existing=self.memory.existing_trial(self.context,val.fingerprint)
-            if not existing and self.memory.run(self.run_id)["simulations"] >= self.simulation_limit:
-                continue
-            neighbor_id, fresh = self.memory.add_trial(self.run_id, neighbor, val, self.context, kind="sensitivity", parent_id=trial_id)
-            # Link reused evidence explicitly; exact expression + settings + catalog dedup.
-            self.memory.transaction(lambda: self.memory.event(self.run_id, "sensitivity_link", {"parent_id": trial_id, "neighbor_id": neighbor_id}))
-            for intent in intents: self.memory.link_sensitivity(intent['id'],neighbor_id,design_hash)
-            if fresh:
-                self.execute(neighbor_id)
+        """Compatibility-only: verify existing recorded sensitivity links.
+
+        This method never generates a new expression, trial or Simulation.
+        A v0.8 Worker must propose every experiment with authentic source.
+        """
+        trial=self.memory.trial(trial_id)
+        if trial['context']!=self.context:
+            raise ResearchError('跨研究范围不能核对敏感性实验')
+        # No new formula, network request or side effect.
+        return self.neighbor_ids_for(trial_id)
 
     def neighbor_ids_for(self, trial_id):
         links = self.memory.db.execute("SELECT payload FROM events WHERE kind='sensitivity_link'").fetchall()
