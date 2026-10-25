@@ -22,7 +22,7 @@ User objective + approved PIT catalog + supported operators + cited external mat
               Next bounded run; old queued work survives restart
 ```
 
-The new official `alpha-research-v08` command does not accept fixture generators, a candidate JSON file, a seed/recipe family or tool-side formula mutation. It requires a REAL locally hosted LLM on loopback with an explicit model and API key; otherwise it fails closed. Live BRAIN execution is disabled pending separate user authorization. Arbitrary LLM responses are untrusted and are checked by schemas, original/current model identity, source receipts and deterministic AST, field, operator, PIT, context and unit validation.
+The new official `alpha-research-v08` command does not accept fixture generators, a candidate JSON file, a seed/recipe family or tool-side formula mutation. It requires a genuine tools-capable LLM: either explicitly configured local loopback, or reviewed remote HTTPS with a frozen host/model/data-export approval plus an invocation-time `--allow-remote-llm`. Both require a model ID and API key; otherwise it fails closed. Live BRAIN execution is disabled pending separate user authorization. Arbitrary LLM responses are untrusted and are checked by schemas, original/current model identity, source receipts and deterministic AST, field, operator, PIT, context and unit validation.
 
 ## Separate immutable facts and revisable knowledge
 

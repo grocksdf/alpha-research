@@ -421,8 +421,9 @@ python -m alpharesearch.v08_cli --config config/settings.toml \
   --project-id offline-new --objective 'Discover and falsify new authorized mechanisms' \
   --output state/v08-plan.json
 
-# Requires a real local tools-capable LLM on loopback, configured in [llm],
-# and LLM_API_KEY. Does NOT contact BRAIN in Demo mode.
+# Requires a real tools-capable LLM and LLM_API_KEY.
+# Remote HTTPS needs frozen [llm.remote_authorization] AND --allow-remote-llm.
+# The default Demo run NEVER contacts BRAIN or Submit.
 python -m alpharesearch.v08_cli --config config/settings.toml \
   --database state/v08-fresh.sqlite3 drive --plan state/v08-plan.json --batches 3
 ```
@@ -430,6 +431,13 @@ python -m alpharesearch.v08_cli --config config/settings.toml \
 No LLM endpoint/key means **no autonomous candidate**; Scripted offline
 fixtures are only under `tests/`, never a product candidate fallback.
 Original v0.6 frozen runs and submission gates are preserved.
+
+For reviewed remote HTTPS providers (or local HTTP loopback), follow
+`docs/v08-llm-provider-authorization.md`. Real LLM acceptance is an opt-in
+networked Demo test in `verification/v08_genuine_llm_acceptance.py`, not a
+scripted-model pass. A valid ChatGPT conversation is not an API credential.
+The independent `benchmarks/evaluate_memory.py` is included in source ZIP and
+Python wheel distributions; it never generates production candidates.
 
 See `docs/v08-hardcoded-audit.md`, `docs/v08-architecture-playbook.md`,
 `docs/v08-experiments-ab.md`, `docs/v08-next-brain-validation.md`, and

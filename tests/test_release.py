@@ -37,6 +37,20 @@ class ReleaseTests(TestCase):
             with zipfile.ZipFile(archive,'a') as z:z.writestr('alpha-research/EXTRA.txt','unexpected')
             with self.assertRaises(ValueError):verify_archive(archive)
 
+    def test_benchmark_is_mandatory_for_source_and_archives(self):
+        from scripts.release import inventory
+        root=Path(__file__).resolve().parents[1]
+        self.assertIn(Path('benchmarks/evaluate_memory.py'),inventory(root))
+        self.assertEqual(verify_sources(root),len(inventory(root)))
+        with tempfile.TemporaryDirectory() as tmp:
+            archive=Path(tmp)/'fixed-source.zip'
+            create_archive(archive,root)
+            with zipfile.ZipFile(archive) as source:
+                self.assertIn('alpha-research/benchmarks/evaluate_memory.py',source.namelist())
+                self.assertIn('alpha-research/benchmarks/__init__.py',source.namelist())
+                self.assertIn('alpha-research/tests/test_v08_benchmark.py',source.namelist())
+            self.assertEqual(verify_archive(archive),len(inventory(root)))
+
     def test_configured_research_rules_must_be_in_release_inventory(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);(root/'config').mkdir()

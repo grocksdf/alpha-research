@@ -1,21 +1,21 @@
 # AlphaResearch v0.8 — 真实 LLM 实验及研究记忆 A/B 评测记录
 
-## Local genuine LLM multi-round acceptance: **NOT RUN**
+## Genuine LLM multi-round acceptance: **NOT RUN**
 
-This environment contains neither an `LLM_API_KEY` nor a reachable, authorized local model endpoint (e.g. a loopback tools-capable service). The user authorized local LLM experiments, but **did not authorize real BRAIN Simulation or Submit**. It would be false to report scripted LLM calls as a genuine autonomous research success.
+The current execution environment exposes no authorized `LLM_API_KEY`, `OPENAI_API_KEY`, reachable loopback model or ChatGPT-to-API bridge. A remote HTTPS endpoint can now be configured **only** with an expiring frozen approval and explicit operator opt-in, but this does not supply an API credential or imply a completed request. The user authorized local LLM experiments, but **did not authorize real BRAIN Simulation or Submit**. It would be false to report scripted LLM calls as a genuine autonomous research success.
 
 Engineering-only scripted offline evidence: `tests/test_v08_autoresearch.py` runs three consecutive bounded batches. A test fixture constructs a novel formula from whichever reviewed field name it finds; this expression is test data only and never a product seed. The agent roles, candidate provenance, AST validator, Demo simulator, parent-child hypothesis lineage, memory selection and contradictory memory exclusion are exercised. All fixture-generated evidence is classified `offline_scripted_test`/`synthetic_process`.
 
-### Reproducible real local-LLM acceptance *when a genuine local provider is supplied*
+### Reproducible genuine LLM acceptance with authorized provider access
 
-1. Run a tools-capable LLM server bound to a private loopback host, validate model identity and configure **only** the `llm.base_url` and `llm.model` in a fresh offline Demo config. Do not connect BRAIN or enable Live/Submit flags.
+1. Use a real tools-capable LLM, either loopback or a remote HTTPS provider with an explicitly reviewed, time-limited host/model/data-export approval. Set the actual provider model ID and prices in a fresh offline Demo config; never enable Live BRAIN/Submit.
 2. Set `LLM_API_KEY` only in the local test runtime. Confirm `mode=demo`, `safety.live_research_enabled=false`, `safety.submission_enabled=false`.
 3. Prepare a **new** v0.8 database and freeze a project plan using `alpha-research-v08 --config ... --database ... plan --project-id ... --objective ... --output ...`.
-4. Run at least three bounded rounds with `alpha-research-v08 --config ... --database ... drive --plan ... --batches 3`.
+4. Run at least three bounded rounds with the opt-in `verification/v08_genuine_llm_acceptance.py` program; provide `--allow-remote-llm` for approved remote hosts. The program requires a NEW database, finite USD/token/simulation limits and 5 audited role responses per completed round.
 5. Check that all 5 role responses per round carry model identity, complete structured payload, original+canonical SHA256 and response ID. Check at least one original LLM-authored legal Alpha actually enters a synthetic Demo simulation, and its feedback is used explicitly in next-round Strategist memory references. Capture any failures and true token/price usage or unknown values; no fallback.
 6. Repeat with different research goals/catalogs, plus no-memory and shuffled-memory controls (four-arm A/B below), under separate frozen plans. Only after independently verified real-model outputs and multiple independent seeds/tasks can one claim autonomous-discovery **engineering** acceptance.
 
-No authenticated remote request was issued here. Because genuine model behavior and actual non-deterministic convergence remain unobserved, **the user's strongest final criterion has not been empirically proven**.
+No authenticated local or remote model request was issued in the development environment. `verification/v08_genuine_llm_acceptance.py` was validated to fail closed when credentials are absent; its existence is not a successful true-model experiment. See `docs/v08-llm-provider-authorization.md`. Because genuine model behavior and actual non-deterministic convergence remain unobserved, **the user's strongest final criterion has not been empirically proven**.
 
 ## Independent A/B benchmark, never a product generator
 

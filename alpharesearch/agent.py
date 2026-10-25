@@ -123,15 +123,21 @@ class ResearchAgent:
             return {'notes':research.notes(engine),'families':research.families(engine)[:50]}
         raise ResearchError("未授权工具；模型不能修改评价器、访问文件或提交")
 
-    def complete(self, messages, tools):
-        """One charged model request; no simulation or submission permission."""
+    def complete(self, messages, tools, *, tool_choice="auto"):
+        """One charged model request; only host-approved function-call mode.
+
+        v0.8 requires a structured tool call. Existing legacy research keeps
+        its original auto behavior; the model cannot select arbitrary tools.
+        """
+        if tool_choice not in ("auto", "required"):
+            raise ResearchError("未经授权的 LLM tool_choice")
         engine = self.engine
         rules = engine.config["rules"]
         engine.memory.consume(engine.run_id, "llm_calls", rules["max_llm_calls_per_run"])
         started=time.monotonic()
         try:
             response = self.api.once("POST", self.api.base.rstrip("/")+"/chat/completions",
-                {"model": self.model, "messages": messages, "tools": tools, "tool_choice": "auto", **self.extra_params},
+                {"model": self.model, "messages": messages, "tools": tools, "tool_choice": tool_choice, **self.extra_params},
                 {"Authorization": "Bearer "+self.key})
         except ApiError:
             engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,detail={'outcome':'transport_error'})

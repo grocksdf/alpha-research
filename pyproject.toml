@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alpha-research"
-version = "0.8.0"
+version = "0.8.1"
 description = "LLM-only evidence-bound autonomous Alpha research and safety-gated BRAIN workflow"
 requires-python = ">=3.11"
 dependencies = []
@@ -14,4 +14,4 @@ alpha-research = "alpharesearch.cli:main"
 alpha-research-v08 = "alpharesearch.v08_cli:main"
 
 [tool.setuptools.packages.find]
-include = ["alpharesearch*"]
+include = ["alpharesearch*", "benchmarks*"]

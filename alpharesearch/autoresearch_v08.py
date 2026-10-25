@@ -540,7 +540,11 @@ class LLMRoles:
         self.plan=plan
         if engine.config["mode"]=="live" and adapter is not None:
             raise ResearchError("Live 研究禁止注入脚本化模型")
-        self.adapter=adapter if adapter is not None else ResearchAgent(engine)
+        if adapter is None:
+            from .llm_provider_policy import authorized_v08_agent
+            self.adapter = authorized_v08_agent(engine)
+        else:
+            self.adapter = adapter
         self.is_scripted=adapter is not None
 
     def ask(self,phase,context, *, start_time):
@@ -595,7 +599,8 @@ class LLMRoles:
             else:
                 self.adapter.model=chosen
                 response=self.adapter.complete(messages,[tool("v08_"+phase,
-                    "Only return the requested JSON, no side effects.",schema["properties"],list(schema["properties"]))])
+                    "Only return the requested JSON, no side effects.",schema["properties"],list(schema["properties"]))],
+                    tool_choice="required")
             data=response.data
             identity=_model_identity(self.engine.memory,self.engine.run_id,chosen,data.get("model"))
             if identity["model_identity_status"] not in ("exact_match","reviewed_alias"):
