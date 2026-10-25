@@ -23,6 +23,7 @@ from .engine import Engine
 from .formula_quality import validate_units
 from .memory import Memory
 from .proposal_audit import _model_identity, _safe_text
+from .v08_pricing import reviewed_model_price, preflight_llm_budget
 
 PROTOCOL = "llm-autoresearch-v08"
 PHASES = ("explorer", "strategist", "worker", "critic", "playbook")
@@ -61,6 +62,11 @@ SCHEMAS = {
         "evidence_needed": _array(_field(240), 12),
         "memory_ids_used": _array(_field(32), 12),
         "memory_effect": _field(600),
+        "memory_application": _array(_object({
+            "memory_id": _field(32),
+            "decision_change": _field(500),
+            "evidence_rationale": _field(600),
+        }), 12),
     }), 6), "direction_update": _field(900)}),
     "worker": _object({"proposals": _array(_object({
         "hypothesis_index": {"type": "integer"},
@@ -116,7 +122,20 @@ def _check_structure(phase, data):
                 if type(value) is not int or not rule.get("minimum", -10000) <= value <= rule.get("maximum", 10000):
                     raise ResearchError("v0.8 研究索引/优先级非法")
             elif kind == "array":
-                if not isinstance(value, list) or len(value) > rule["maxItems"] or any(
+                if key == "memory_application" and phase == "strategist":
+                    if not isinstance(value, list) or len(value) > 12:
+                        raise ResearchError("记忆应用说明必须为有限列表")
+                    for application in value:
+                        if not isinstance(application, dict) or set(application) != {
+                                "memory_id", "decision_change", "evidence_rationale"}:
+                            raise ResearchError("记忆应用必须绑定记忆 ID、决策变化和证据说明")
+                        _require_text(application["memory_id"], "memory_id", 32)
+                        _require_text(application["decision_change"], "decision_change", 500)
+                        _require_text(application["evidence_rationale"], "evidence_rationale", 600)
+                        if (len(application["decision_change"].strip()) < 24 or
+                                len(application["evidence_rationale"].strip()) < 24):
+                            raise ResearchError("记忆应用缺少具体研究决策或解释")
+                elif not isinstance(value, list) or len(value) > rule["maxItems"] or any(
                         not isinstance(x, str) or not x.strip() or len(x) > rule["items"]["maxLength"] for x in value):
                     raise ResearchError("v0.8 研究来源/字段清单无效")
             elif isinstance(kind, list):
@@ -380,27 +399,160 @@ class Playbook:
                 "automatic_fallback":False})
         self.memory.transaction(write)
 
+    def _eligible_memory_revision(self, project_id, row):
+        """Recheck eligibility against stored *experiment facts*, not LLM claims.
+
+        The knowledge grade may never promote synthetic process evidence to
+        verified market alpha. The newest revision must be provisional and
+        its supporting trial must exist with a saved, known-source result.
+        """
+        try:
+            if row["project_id"] != project_id or row["status"] != "provisional":
+                return False
+            body = json.loads(row["body"])
+            citations = json.loads(row["evidence_ids"])
+            support = body["supporting_evidence_ids"]
+            contradiction = body["contradicting_evidence_ids"]
+            if (not isinstance(support,list) or not support or contradiction or
+                    not isinstance(citations,list) or citations != support or
+                    len(support)!=len(set(support))):
+                return False
+            if row["evidence_grade"] not in ("synthetic_process","research_is"):
+                return False
+            for evidence_id in support:
+                if not isinstance(evidence_id,str):
+                    return False
+                trial = self.db.execute(
+                    "SELECT state,trial_id FROM v08_queue WHERE project_id=? AND id=?",
+                    (project_id,evidence_id)).fetchone()
+                if not trial or trial["state"]!="evaluated" or not trial["trial_id"]:
+                    return False
+                result = self.memory.latest(trial["trial_id"])
+                if not isinstance(result,dict):
+                    return False
+                if row["evidence_grade"]=="synthetic_process":
+                    if result.get("synthetic") is not True:
+                        return False
+                elif result.get("mode")!="live" or result.get("synthetic") is True:
+                    return False
+            return True
+        except (KeyError,TypeError,ValueError,json.JSONDecodeError):
+            return False
+
+    def validate_memory_references(self,project_id, retrieved, referenced):
+        """Every referenced revision must be retrieved and still applicable."""
+        available = {x["id"]:x for x in retrieved}
+        if (not isinstance(referenced,list) or
+                len(referenced)!=len(set(referenced)) or
+                not set(referenced).issubset(available)):
+            raise ResearchError("Strategist 引用了未检索或重复的记忆 ID")
+        for memory_id in referenced:
+            row=self.db.execute(
+                "SELECT * FROM v08_knowledge WHERE project_id=? AND id=?",
+                (project_id,memory_id)).fetchone()
+            if not row or not self._eligible_memory_revision(project_id,row):
+                raise ResearchError("Strategist 引用了已撤销或无有效证据的记忆")
+            latest=self.db.execute(
+                "SELECT id FROM v08_knowledge WHERE project_id=? AND topic=? "
+                "ORDER BY created DESC,id DESC LIMIT 1",
+                (project_id,row["topic"])).fetchone()
+            if not latest or latest[0]!=memory_id:
+                raise ResearchError("Strategist 引用了已被替代的旧知识")
+            if (digest({"id":memory_id,
+                        "topic":row["topic"],
+                        "claim":json.loads(row["body"])["claim"],
+                        "supporting_evidence_ids":json.loads(row["body"])["supporting_evidence_ids"]})
+                    != available[memory_id]["revision_evidence_sha256"]):
+                raise ResearchError("检索的知识摘要与持久化证据不一致")
+        return True
+
     def memory_for(self,project_id,run_id,limit=12):
-        # Latest immutable revision per topic; never consume superseded revisions.
         rows=self.db.execute("SELECT * FROM v08_knowledge WHERE project_id=? ORDER BY created DESC,id DESC",
-                            (project_id,)).fetchall()
+                             (project_id,)).fetchall()
         latest={}
         for row in rows:
             if row["topic"] not in latest:
-                latest[row["topic"]]=dict(row)
-        selected=[r for r in latest.values() if r["status"]=="provisional"][:limit]
-        safe=[{"id":x["id"],"topic":x["topic"],"claim":json.loads(x["body"])["claim"],
-               "uncertainty":json.loads(x["body"])["uncertainty"],
-               "evidence_grade":x["evidence_grade"],"market_alpha_validated":False,
-               "supporting_evidence_ids":json.loads(x["evidence_ids"])}
-              for x in selected]
-        def log():
-            self.event(run_id,"memory_selected",{"project_id":project_id,
-                "used_revision_ids":[x["id"] for x in selected],
-                "excluded_unreliable":len(latest)-len(selected),
-                "context_sha256":digest(safe)})
-        self.memory.transaction(log)
+                latest[row["topic"]]=row
+        selected=[r for r in latest.values()
+                  if self._eligible_memory_revision(project_id,r)][:limit]
+        safe=[]
+        for row in selected:
+            body=json.loads(row["body"])
+            support=body["supporting_evidence_ids"]
+            safe.append({"id":row["id"],"topic":row["topic"],"claim":body["claim"],
+                         "uncertainty":body["uncertainty"],
+                         "evidence_grade":row["evidence_grade"],
+                         "market_alpha_validated":False,
+                         "supporting_evidence_ids":support,
+                         "revision_evidence_sha256":digest({
+                             "id":row["id"],"topic":row["topic"],
+                             "claim":body["claim"],"supporting_evidence_ids":support})})
+        self.memory.transaction(lambda:self.event(run_id,"memory_retrieved",{
+            "project_id":project_id,"retrieved_revision_ids":[x["id"] for x in safe],
+            "excluded_unreliable":len(latest)-len(selected),
+            "context_sha256":digest(safe)}))
         return safe
+
+    def record_memory_decisions(self, project_id, run_id, strategist_request_id,
+                                decision, retrieved):
+        """Bind claimed references to one exact archived Strategist decision.
+
+        A structured explanation is evidence of a *reported decision pathway*
+        only. It cannot establish counterfactual memory benefit or Alpha uplift.
+        """
+        row=self.db.execute(
+            "SELECT r.state,r.role,r.project_id,p.body_json,p.canonical_body_sha256 "
+            "FROM v08_requests r JOIN v08_role_payloads p ON p.request_id=r.id "
+            "WHERE r.id=? AND r.run_id=?",
+            (strategist_request_id,run_id)).fetchone()
+        if (not row or (row["state"],row["role"],row["project_id"])!=(
+                "completed","strategist",project_id) or
+                row["canonical_body_sha256"]!=digest(decision) or
+                digest(json.loads(row["body_json"]))!=digest(decision)):
+            raise ResearchError("Strategist 记忆说明与原始模型提案不一致")
+        references=[]
+        applied=[]
+        decision_evidence=[]
+        for item in decision["decisions"]:
+            if item["hypothesis_index"] < 0:
+                raise ResearchError("Strategist 决策索引无效")
+            used=item["memory_ids_used"]
+            applications=item["memory_application"]
+            ids=[application["memory_id"] for application in applications]
+            if len(ids)!=len(set(ids)) or set(ids)!=set(used):
+                raise ResearchError("已引用记忆与具体决策应用说明必须逐条对应")
+            self.validate_memory_references(project_id,retrieved,used)
+            refs=[]
+            for application in applications:
+                memory=next(m for m in retrieved if m["id"]==application["memory_id"])
+                refs.append({
+                    **application,
+                    "evidence_ids":memory["supporting_evidence_ids"],
+                    "evidence_grade":memory["evidence_grade"],
+                    "revision_evidence_sha256":memory["revision_evidence_sha256"]})
+            references.extend(used)
+            applied.extend(ids)
+            decision_evidence.append({
+                "hypothesis_index":item["hypothesis_index"],
+                "action":item["action"],
+                "priority":item["priority"],
+                "experiment":item["experiment"],
+                "rationale":item["rationale"],
+                "decision_sha256":digest(item),
+                "memory_effect_explanation":item["memory_effect"],
+                "memory_application":refs})
+        retrieved_ids=[m["id"] for m in retrieved]
+        receipt={
+            "project_id":project_id,"strategist_request_id":strategist_request_id,
+            "strategist_reply_sha256":digest(decision),
+            "memory_retrieved":retrieved_ids,
+            "memory_referenced":list(dict.fromkeys(references)),
+            "memory_applied":list(dict.fromkeys(applied)),
+            "decision_memory_refs":decision_evidence,
+            "decision_explanations_are_not_causal_proof":True,
+        }
+        self.memory.transaction(lambda:self.event(run_id,"memory_influence",receipt))
+        return receipt
 
     def evidence(self,project_id,limit=20):
         values=[]
@@ -585,6 +737,35 @@ class LLMRoles:
             "Final holdout, secret credentials and runtime permissions are never available.")},
                   {"role":"user","content":dumps(context)}]
         schema=SCHEMAS[phase]
+        tools=[tool("v08_"+phase,
+                    "Only return the requested JSON, no side effects.",
+                    schema["properties"],list(schema["properties"]))]
+        if not self.is_scripted:
+            # Explicitly reviewed free prices are different from missing or
+            # unreviewed zero prices. This receipt is model-specific.
+            price=reviewed_model_price(self.engine.config,chosen)
+            if dollars is None:
+                raise ResearchError("真实 v0.8 LLM 必须具有正值、有限的 USD 批次预算")
+            budget=preflight_llm_budget(
+                messages=messages,tool_schema=tools,price=price,
+                config=self.engine.config,
+                remaining_tokens=self.plan["resources"]["max_tokens_per_batch"]-tokens,
+                remaining_usd=dollars-sum(r[2] for r in charges))
+            self.adapter.extra_params={
+                **self.adapter.extra_params,
+                "max_tokens":budget["max_output_tokens"]}
+            # The original ResearchAgent cost reporter reads this receipt
+            # only to attach reviewed model/price provenance; it does not
+            # turn estimated costs into verified provider invoices.
+            self.engine.config["_v08_pricing_receipt"]=price
+            self.engine.memory.transaction(lambda:self.playbook.event(
+                self.engine.run_id,"llm_budget_preflight",{
+                    "project_id":self.plan["project_id"],"role":phase,
+                    "model":chosen,"price_status":price["status"],
+                    "price_source":price["source"],
+                    "price_reviewed_at":price["reviewed_at"],
+                    "price_approval_ref":price["approval_ref"],
+                    **budget}))
         request_id=self.playbook.request_started(self.plan["project_id"],self.engine.run_id,
                                                   phase,chosen,messages)
         response=None
@@ -598,9 +779,30 @@ class LLMRoles:
                 response=self.adapter.complete(phase,messages,schema,chosen)
             else:
                 self.adapter.model=chosen
-                response=self.adapter.complete(messages,[tool("v08_"+phase,
-                    "Only return the requested JSON, no side effects.",schema["properties"],list(schema["properties"]))],
-                    tool_choice="required")
+                response=self.adapter.complete(messages,tools,tool_choice="required")
+                # Observed consumption may exceed a pre-call *estimate*.
+                # Record the breach and stop; neither prompt sizing nor
+                # max_tokens guarantees a provider USD invoice ceiling.
+                observed=self.engine.memory.db.execute(
+                    "SELECT input_tokens,output_tokens,usd FROM costs "
+                    "WHERE run_id=? AND category='llm'",
+                    (self.engine.run_id,)).fetchall()
+                unknown=any(c[0] is None or c[1] is None or c[2] is None
+                            for c in observed)
+                spent_tokens=sum(c[0]+c[1] for c in observed if c[0] is not None and c[1] is not None)
+                spent_usd=sum(c[2] for c in observed if c[2] is not None)
+                exceeded=(spent_tokens>self.plan["resources"]["max_tokens_per_batch"] or
+                          spent_usd>self.plan["resources"]["max_known_usd_per_batch"])
+                self.engine.memory.transaction(lambda:self.playbook.event(
+                    self.engine.run_id,"llm_budget_observed",{
+                        "request_id":request_id,"model":chosen,
+                        "unknown_usage_or_cost":unknown,"soft_budget_exceeded":exceeded,
+                        "known_tokens":spent_tokens,"known_usd":spent_usd,
+                        "remote_invoice_hard_capped":False}))
+                if unknown:
+                    raise ResearchError("真实 LLM 返回用量未知，禁止继续或视作零成本")
+                if exceeded:
+                    raise ResearchError("模型报告费用超出软预算；项目必须停止人工核对")
             data=response.data
             identity=_model_identity(self.engine.memory,self.engine.run_id,chosen,data.get("model"))
             if identity["model_identity_status"] not in ("exact_match","reviewed_alias"):
@@ -787,16 +989,12 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
                 decision,strategist_request=roles.ask("strategist",{
                     **common,"hypotheses":hypotheses,"hypothesis_ids":ids},start_time=started)
                 choices=decision["decisions"]
-                approved_mem={m["id"] for m in memory}
                 for item in choices:
-                    if not set(item["memory_ids_used"]).issubset(approved_mem):
-                        raise ResearchError("Strategist 引用了未检索或过期的研究记忆")
-                store.memory.transaction(lambda:store.event(engine.run_id,"memory_influence",{
-                    "strategist_request_id":strategist_request,
-                    "decision_memory_refs":[{
-                        "hypothesis_index":item["hypothesis_index"],
-                        "used":item["memory_ids_used"],
-                        "effect_sha256":digest(item["memory_effect"])} for item in choices]}))
+                    if item["hypothesis_index"] >= len(ids):
+                        raise ResearchError("Strategist 引用了不存在的假设索引")
+                memory_receipt=store.record_memory_decisions(
+                    plan["project_id"],engine.run_id,strategist_request,
+                    decision,memory)
                 chosen=[]
                 for d in sorted(choices,key=lambda x:x["priority"]):
                     idx=d["hypothesis_index"]
@@ -810,7 +1008,10 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
                         "strategist_request_id":strategist_request,"note_sha256":digest(decision)}))
                     store.end_batch(batch_id,engine.run_id,'completed','LLM_selected_no_experiment')
                     return {"status":"active","new_trials":0,"batch_id":batch_id,
-                            "reason":"LLM_selected_no_experiment","memory_used":[m["id"] for m in memory]}
+                            "reason":"LLM_selected_no_experiment",
+                            "memory_retrieved":memory_receipt["memory_retrieved"],
+                            "memory_referenced":memory_receipt["memory_referenced"],
+                            "memory_applied":memory_receipt["memory_applied"]}
                 generated,worker_request=roles.ask("worker",{**common,"hypotheses":hypotheses,
                     "strategist_decisions":choices,"selected_indices":chosen},start_time=started)
                 formulae=generated["proposals"]
@@ -857,13 +1058,19 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
                 store.memory.transaction(lambda:store.event(engine.run_id,"batch_completed",{
                     "project_id":plan["project_id"],"batch_id":batch_id,
                     "new_candidates":len(accepted),"base_simulations":sim_count,
-                    "knowledge_revisions":new_knowledge,"memory_ids_used":[x["id"] for x in memory]}))
+                    "knowledge_revisions":new_knowledge,
+                    "memory_retrieved":memory_receipt["memory_retrieved"],
+                    "memory_referenced":memory_receipt["memory_referenced"],
+                    "memory_applied":memory_receipt["memory_applied"]}))
                 store.end_batch(batch_id,engine.run_id,'completed','research_cycle_completed')
                 store.audit(plan["project_id"])
                 return {"status":"active","batch_id":batch_id,
                     "new_candidates":len(accepted),"new_trials":sim_count,
                     "knowledge_revisions":new_knowledge,
-                    "memory_used":[m["id"] for m in memory],
+                    "memory_retrieved":memory_receipt["memory_retrieved"],
+                    "memory_referenced":memory_receipt["memory_referenced"],
+                    "memory_applied":memory_receipt["memory_applied"],
+                    "memory_effectiveness_causally_proven":False,
                     "synthetic_evidence_not_market_performance":True,
                     "real_brain_simulations":0,"submissions":0}
             except BaseException as error:

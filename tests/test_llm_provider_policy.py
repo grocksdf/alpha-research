@@ -41,6 +41,22 @@ def reviewed_llm():
     }
 
 
+def install_reviewed_test_price(config):
+    now=datetime.now(timezone.utc)
+    config["cost"]={
+        "input_per_million_usd":2.0,
+        "output_per_million_usd":8.0,
+        "price_review":{
+            "source":"OFFLINE-TEST-PRICE-RECORD",
+            "applicable_models":["reviewed-model-a"],
+            "reviewed_at":(now-timedelta(hours=1)).isoformat(),
+            "reviewed_by":"Offline engineering reviewer",
+            "approval_ref":"TEST-PRICE-REVIEW-123",
+            "zero_price_reviewed":False,
+        },
+    }
+
+
 class LLMEndpointPolicyTests(unittest.TestCase):
     def test_loopback_http_is_allowed_without_remote_approval(self):
         for host in ("127.0.0.1", "[::1]", "localhost"):
@@ -191,7 +207,9 @@ class LLMEndpointPolicyTests(unittest.TestCase):
             conf["database"]=str(Path(folder)/"v08-isolated.sqlite3")
             conf["llm"]=reviewed_llm()
             conf["_v08_remote_operator_confirmed"]=True
-            plan=make_plan(conf,project_id="provider-timeout",objective="One attempt only")
+            install_reviewed_test_price(conf)
+            plan=make_plan(conf,project_id="provider-timeout",objective="One attempt only",
+                           max_known_usd_per_batch=1.0)
             with patch.dict(os.environ,{"LLM_API_KEY":"fake-local-offline-token"}):
                 with patch.object(PrivateLLMTransport,"request",side_effect=AmbiguousWrite("offline expected failure")) as call:
                     with self.assertRaises(AmbiguousWrite):

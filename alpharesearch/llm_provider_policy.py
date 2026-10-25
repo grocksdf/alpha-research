@@ -30,13 +30,48 @@ _REMOTE_FIELDS = frozenset({"approved_base_url", "approved_models", "approved_by
 
 
 def _model_set(llm):
-    models = {llm.get(key) for key in ("model", "fast_model", "reasoning_model")}
-    if not isinstance(llm.get("model"), str) or not llm["model"].strip():
-        raise ResearchError("v0.8 缺少真实 LLM 模型 ID")
-    if any(x is not None and (not isinstance(x, str) or not x.strip() or len(x) > 160)
-           for x in models):
-        raise ResearchError("v0.8 LLM 模型 ID 无效")
-    return sorted(x for x in models if x is not None)
+    """Validate *before* set construction so unhashable TOML/API values fail
+    as ResearchError, never TypeError. Alias approval is checked at config
+    preflight as well as independently against the frozen Run snapshot.
+    """
+    if not isinstance(llm, dict):
+        raise ResearchError("llm 配置必须为对象")
+    model = llm.get("model")
+    if not isinstance(model, str) or not model or model != model.strip() or len(model) > 160:
+        raise ResearchError("v0.8 缺少合法非空真实 LLM 模型 ID")
+    values = []
+    for key in ("model", "fast_model", "reasoning_model"):
+        value = llm.get(key)
+        if value is None and key != "model":
+            continue
+        if (not isinstance(value, str) or not value.strip() or
+                value != value.strip() or len(value) > 160 or
+                not re.fullmatch(r"[A-Za-z0-9._:/@+-]{1,160}", value)):
+            raise ResearchError("v0.8 LLM 模型 ID 无效: "+key)
+        values.append(value)
+    names = sorted(set(values))
+    aliases = llm.get("response_model_aliases", {})
+    if not isinstance(aliases, dict) or len(aliases) > 12:
+        raise ResearchError("v0.8 只能使用明确审核的模型别名映射")
+    for requested, entries in aliases.items():
+        if (not isinstance(requested, str) or requested not in names or
+                not isinstance(entries, list) or len(entries) > 12):
+            raise ResearchError("v0.8 别名映射请求模型非法")
+        seen = set()
+        for item in entries:
+            if not isinstance(item, dict) or set(item) != {
+                    "returned_model", "reviewed_by", "approval_ref", "reason"}:
+                raise ResearchError("v0.8 别名缺少人工审核字段")
+            returned = item["returned_model"]
+            if (not isinstance(returned, str) or not re.fullmatch(
+                    r"[A-Za-z0-9._:/@+-]{1,160}", returned) or
+                    returned == requested or returned in seen or
+                    any(not isinstance(item[k], str) or not item[k].strip()
+                        for k in ("reviewed_by", "approval_ref", "reason")) or
+                    len(item["reason"].strip()) < 8):
+                raise ResearchError("v0.8 不合法或重复模型别名")
+            seen.add(returned)
+    return names
 
 
 def _parse_expiry(text):

@@ -95,6 +95,16 @@ max_notes_per_run = 30
 # 负责人按供应商价格填入每百万 token 美元价格；缺省不推测费用。
 # input_per_million_usd = 0.0
 # output_per_million_usd = 0.0
+# v0.8.1 genuine LLM pricing is NOT authorised by these numbers alone.
+# An exact-model and time-bounded human-reviewed price record is mandatory.
+# Example (documentation ONLY; no active default authorisation):
+# [cost.price_review]
+# source = "Official vendor price schedule or reviewed billing contract"
+# applicable_models = ["your-approved-real-model"]
+# reviewed_at = "2026-10-25T00:00:00+00:00"
+# reviewed_by = "Your finance/security approver"
+# approval_ref = "Your documented review reference"
+# zero_price_reviewed = false
 
 [validation]
 # 独立于每次研究的 --ledger；所有研究共享。不要随实验重建/改路径。

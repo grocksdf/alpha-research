@@ -140,7 +140,17 @@ class ResearchAgent:
                 {"model": self.model, "messages": messages, "tools": tools, "tool_choice": tool_choice, **self.extra_params},
                 {"Authorization": "Bearer "+self.key})
         except ApiError:
-            engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,detail={'outcome':'transport_error'})
+            receipt=engine.config.get("_v08_pricing_receipt")
+            price_metadata=({
+                "model":self.model, "price_status":receipt["status"],
+                "price_policy_sha256":receipt["price_policy_sha256"],
+                "price_source":receipt["source"],
+                "price_reviewed_at":receipt["reviewed_at"],
+                "price_approval_ref":receipt["approval_ref"]}
+                if isinstance(receipt,dict) and receipt.get("model")==self.model else {})
+            engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,
+                input_tokens=None,output_tokens=None,usd=None,
+                detail={'outcome':'transport_error','vendor_usage':'unknown',**price_metadata})
             raise
         usage=response.data.get('usage',{}) if isinstance(response.data,dict) else {}
         usage=usage if isinstance(usage,dict) else {}
@@ -150,7 +160,19 @@ class ResearchAgent:
         pricing=engine.config.get('cost',{});usd=None
         if input_tokens is not None and output_tokens is not None and all(type(pricing.get(k)) in (int,float) and pricing[k]>=0 for k in ('input_per_million_usd','output_per_million_usd')):
             usd=(input_tokens*pricing['input_per_million_usd']+output_tokens*pricing['output_per_million_usd'])/1e6
-        engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,input_tokens,output_tokens,usd,usd is not None,{'model':self.model,'http_status':response.status})
+        detail={'model':self.model,'http_status':response.status,
+                'vendor_usage':'reported' if input_tokens is not None and output_tokens is not None else 'unknown'}
+        receipt=engine.config.get("_v08_pricing_receipt")
+        if isinstance(receipt,dict) and receipt.get("model")==self.model:
+            detail.update({
+                "price_status":receipt["status"],
+                "price_policy_sha256":receipt["price_policy_sha256"],
+                "price_source":receipt["source"],
+                "price_reviewed_at":receipt["reviewed_at"],
+                "price_approval_ref":receipt["approval_ref"],
+                "usd_is_estimated_not_provider_invoice":True})
+        engine.memory.cost(engine.run_id,'llm',time.monotonic()-started,
+            input_tokens,output_tokens,usd,usd is not None,detail)
         if response.status != 200:
             raise ApiError(f"LLM API HTTP {response.status}，调用已记入预算", response.status)
         return response

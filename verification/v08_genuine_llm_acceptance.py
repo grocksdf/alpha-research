@@ -23,7 +23,8 @@ if __package__ in (None, ""):
 
 from alpharesearch.common import ResearchError, load_settings, digest
 from alpharesearch.autoresearch_v08 import make_plan, execute_batch, Playbook, PHASES
-from alpharesearch.llm_provider_policy import validate_llm_endpoint
+from alpharesearch.llm_provider_policy import validate_llm_endpoint, _model_set
+from alpharesearch.v08_pricing import reviewed_model_price
 from alpharesearch.memory import Memory
 
 
@@ -42,6 +43,9 @@ def audit_real_rounds(dbpath, project_id, responses, *, min_rounds=3):
         if len(batches) < min_rounds or len(responses) < min_rounds:
             reasons.append("fewer_than_required_rounds")
         role_records = []
+        applied_in_later_batches = False
+        referenced_in_later_batches = False
+        audit_summaries = []
         for b in batches:
             if b["status"] != "completed":
                 reasons.append("incomplete_batch_"+str(b["batch_number"]))
@@ -62,8 +66,6 @@ def audit_real_rounds(dbpath, project_id, responses, *, min_rounds=3):
                                      "response_id":row["response_id"],
                                      "tool_call_id":row["tool_call_id"],
                                      "original_raw_sha256":row["original_raw_sha256"]})
-            # The DB fact must be linked to one actual provider policy and
-            # five original authenticated source events (no scripted fixtures).
             provenance=[json.loads(r[0]) for r in memory.db.execute(
                 "SELECT payload FROM events WHERE run_id=? AND kind='v08_role_provenance'",
                 (b["run_id"],))]
@@ -75,6 +77,121 @@ def audit_real_rounds(dbpath, project_id, responses, *, min_rounds=3):
                 (b["run_id"],))]
             if len(policies)!=1 or not policies[0].get("endpoint_policy_sha256"):
                 reasons.append("missing_endpoint_authorization_"+str(b["batch_number"]))
+            # Independently check persisted model pricing and observed token
+            # usage; a completed protocol must not be priced with unreviewed
+            # zero, unreported tokens, or an unaudited vendor invoice estimate.
+            preflights=[json.loads(r[0]) for r in memory.db.execute(
+                "SELECT payload FROM events WHERE run_id=? AND kind='v08_llm_budget_preflight'",
+                (b["run_id"],))]
+            charges=[dict(r) for r in memory.db.execute(
+                "SELECT input_tokens,output_tokens,usd,detail FROM costs "
+                "WHERE run_id=? AND category='llm'",(b["run_id"],))]
+            budget_events=[json.loads(r[0]) for r in memory.db.execute(
+                "SELECT payload FROM events WHERE run_id=? AND kind='v08_llm_budget_observed'",
+                (b["run_id"],))]
+            if (len(preflights)!=len(PHASES) or len(charges)!=len(PHASES)
+                    or len(budget_events)!=len(PHASES)):
+                reasons.append("missing_reviewed_pricing_or_usage_audit_"+str(b["batch_number"]))
+            else:
+                pricing_valid=True
+                for receipt in preflights:
+                    if (receipt.get("price_status") not in (
+                            "reviewed_zero","reviewed_mixed_zero","reviewed_nonzero")
+                            or not receipt.get("price_source")
+                            or not receipt.get("price_reviewed_at")
+                            or not receipt.get("price_policy_sha256")
+                            or type(receipt.get("max_output_tokens")) is not int
+                            or receipt["max_output_tokens"] < 128
+                            or receipt.get("provider_invoice_hard_capped") is not False):
+                        pricing_valid=False
+                for cost in charges:
+                    try:
+                        detail=json.loads(cost["detail"])
+                    except (TypeError,ValueError):
+                        detail={}
+                    if (cost["input_tokens"] is None or cost["output_tokens"] is None
+                            or cost["usd"] is None
+                            or detail.get("price_status") not in (
+                                "reviewed_zero","reviewed_mixed_zero","reviewed_nonzero")
+                            or not detail.get("price_policy_sha256")
+                            or not detail.get("price_source")):
+                        pricing_valid=False
+                if any(e.get("unknown_usage_or_cost") or e.get("soft_budget_exceeded")
+                       for e in budget_events):
+                    pricing_valid=False
+                if not pricing_valid:
+                    reasons.append("unreviewed_or_unknown_model_cost_"+str(b["batch_number"]))
+            retrieved_events=[json.loads(r[0]) for r in memory.db.execute(
+                "SELECT payload FROM events WHERE run_id=? AND kind='v08_memory_retrieved'",
+                (b["run_id"],))]
+            influence_events=[json.loads(r[0]) for r in memory.db.execute(
+                "SELECT payload FROM events WHERE run_id=? AND kind='v08_memory_influence'",
+                (b["run_id"],))]
+            strategist_rows=[r for r in rows if r["role"]=="strategist"]
+            if len(retrieved_events)!=1 or len(influence_events)!=1 or len(strategist_rows)!=1:
+                reasons.append("missing_memory_decision_audit_"+str(b["batch_number"]))
+                continue
+            ret=retrieved_events[0]
+            inf=influence_events[0]
+            strategist=strategist_rows[0]
+            try:
+                original=json.loads(strategist["body_json"])
+                retrieved=inf["memory_retrieved"]
+                referenced=inf["memory_referenced"]
+                applied=inf["memory_applied"]
+                if (inf["strategist_request_id"]!=strategist["id"] or
+                        inf["strategist_reply_sha256"]!=digest(original) or
+                        ret["retrieved_revision_ids"]!=retrieved or
+                        len(referenced)!=len(set(referenced)) or
+                        len(applied)!=len(set(applied)) or
+                        not set(applied).issubset(referenced) or
+                        not set(referenced).issubset(retrieved)):
+                    raise ValueError("memory receipt mismatch")
+                decisions=inf["decision_memory_refs"]
+                if len(decisions)!=len(original["decisions"]):
+                    raise ValueError("decision count mismatch")
+                all_used=[]
+                all_applied=[]
+                for saved,actual in zip(decisions,original["decisions"]):
+                    if (saved["decision_sha256"]!=digest(actual) or
+                            saved["action"]!=actual["action"] or
+                            saved["priority"]!=actual["priority"] or
+                            saved["experiment"]!=actual["experiment"] or
+                            saved["rationale"]!=actual["rationale"] or
+                            len(saved["memory_application"])!=len(actual["memory_application"])):
+                        raise ValueError("decision source mismatch")
+                    all_used.extend(actual["memory_ids_used"])
+                    for memo,declared in zip(saved["memory_application"],actual["memory_application"]):
+                        if any(memo.get(k)!=declared.get(k) for k in (
+                                "memory_id","decision_change","evidence_rationale")):
+                            raise ValueError("LLM memory explanation mismatch")
+                        row=memory.db.execute(
+                            "SELECT * FROM v08_knowledge WHERE project_id=? AND id=?",
+                            (project_id,memo["memory_id"])).fetchone()
+                        if not row or not store._eligible_memory_revision(project_id,row):
+                            raise ValueError("unsupported, revoked or inapplicable memory")
+                        if (json.loads(row["body"])["supporting_evidence_ids"]!=memo["evidence_ids"]
+                                or row["evidence_grade"]!=memo["evidence_grade"]):
+                            raise ValueError("memory evidence citation mismatch")
+                        all_applied.append(memo["memory_id"])
+                if (set(all_used)!=set(referenced) or
+                        set(all_applied)!=set(applied)):
+                    raise ValueError("memory application is only a retrieved list")
+                if b["batch_number"]>1 and referenced:
+                    referenced_in_later_batches=True
+                if b["batch_number"]>1 and applied:
+                    applied_in_later_batches=True
+                if b["batch_number"]<=len(responses):
+                    returned=responses[b["batch_number"]-1]
+                    if any(returned.get(k)!=inf[k] for k in
+                           ("memory_retrieved","memory_referenced","memory_applied")):
+                        raise ValueError("operator report differs from role evidence")
+                audit_summaries.append({
+                    "batch_number":b["batch_number"],"memory_retrieved":len(retrieved),
+                    "memory_referenced":len(referenced),"memory_applied":len(applied),
+                    "causal_memory_lift_proven":False})
+            except (ValueError,KeyError,TypeError,IndexError,ResearchError,json.JSONDecodeError):
+                reasons.append("invalid_memory_decision_proof_"+str(b["batch_number"]))
         queued=memory.db.execute(
             "SELECT COUNT(*) FROM v08_queue WHERE project_id=? AND trial_id IS NOT NULL",
             (project_id,)).fetchone()[0]
@@ -90,14 +207,20 @@ def audit_real_rounds(dbpath, project_id, responses, *, min_rounds=3):
             reasons.append("no_source_bound_playbook_revision")
         if revised < 1:
             reasons.append("no_feedback_driven_parent_hypothesis_revision")
-        if not any(r.get("memory_used") for r in responses[1:]):
-            reasons.append("no_cross_batch_memory_used")
+        if not referenced_in_later_batches:
+            reasons.append("no_cross_batch_memory_referenced")
+        if not applied_in_later_batches:
+            reasons.append("no_cross_batch_memory_applied")
         return {
             "status":"PASS_REAL_LLM_ENGINEERING_PROTOCOL" if not reasons else "INCOMPLETE",
             "reasons":sorted(set(reasons)),"batches":len(batches),
             "roles_verified":len(role_records),"role_provenance":role_records,
             "demo_trials":queued,"synthetic_playbook_entries":played,
-            "parent_child_revisions":revised,"real_brain_simulations":0,
+            "parent_child_revisions":revised,
+            "memory_decision_audit":audit_summaries,
+            "memory_effectiveness_causally_proven":False,
+            "four_arm_memory_ab_still_required":True,
+            "real_brain_simulations":0,
             "real_brain_submits":0,"verified_market_alpha_count":0,
             "alpha_performance_validated":False,
         }
@@ -135,10 +258,10 @@ def main(argv=None):
             raise ResearchError("必须设置每批有限、正值的 USD 保护")
         if not os.getenv("LLM_API_KEY"):
             raise ResearchError("没有当前已授权 LLM_API_KEY；停止真实 LLM 验收，不模拟真实模型")
-        price=config.get("cost",{})
-        if any(type(price.get(k)) not in (int,float) or price[k]<0 for k in
-               ("input_per_million_usd","output_per_million_usd")):
-            raise ResearchError("真实模型费用需要已审核的输入/输出 token 定价，未知账单不得被当成零")
+        # Every configured role model must have a reviewed, model-specific,
+        # dated price source. In particular, unreviewed zero is never free.
+        prices=[reviewed_model_price(config,model)
+                for model in _model_set(config["llm"])]
         policy=validate_llm_endpoint(config["llm"],operator_confirmed=args.allow_remote_llm)
         config["database"]=str(target)
         config["_v08_remote_operator_confirmed"]=bool(args.allow_remote_llm)
@@ -155,6 +278,11 @@ def main(argv=None):
         tested=audit_real_rounds(target,args.project_id,outcomes,min_rounds=args.batches)
         tested.update({"protocol":"v08-genuine-model-demo-acceptance-v1",
                        "provider_policy_sha256":policy["policy_sha256"],
+                       "reviewed_price_receipts":[{
+                           "model":price["model"],"status":price["status"],
+                           "source":price["source"],"reviewed_at":price["reviewed_at"],
+                           "policy_sha256":price["price_policy_sha256"]}
+                           for price in prices],
                        "project_plan_sha256":plan["plan_sha256"],
                        "checked_at":datetime.now(timezone.utc).isoformat(),
                        "scripted_model_injected":False,

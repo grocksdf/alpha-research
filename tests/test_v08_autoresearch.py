@@ -61,7 +61,13 @@ class CatalogDerivedScript:
                     'experiment':'One source-bound base test',
                     'evidence_needed':['independent returns'],
                     'memory_ids_used':[m['id'] for m in context['playbook']][:1],
-                    'memory_effect':'Reconsider previously cited evidence if present'}],
+                    'memory_effect':'Use previous cited evidence to prioritize this base test',
+                    'memory_application':[{
+                        'memory_id':m['id'],
+                        'decision_change':'Prioritize this experiment over an ungrounded new proposal',
+                        'evidence_rationale':'The prior experiment record '+m['supporting_evidence_ids'][0]+
+                            ' has synthetic-process scope; it informs process selection, not market validity',
+                    } for m in context['playbook'][:1]]}],
                     'direction_update':'Reassess earlier evidence; avoid assuming synthetic metrics are real'}
         elif phase=='worker':
             expression='rank('+self.hypothesis_field+')'
@@ -139,7 +145,9 @@ class V08Tests(unittest.TestCase):
         report=execute_batch(self.config,self.plan,adapter=adapter)
         self.assertEqual(report['new_trials'],1)
         self.assertEqual(len(report['knowledge_revisions']),1)
-        self.assertFalse(report['memory_used'])
+        self.assertFalse(report['memory_retrieved'])
+        self.assertFalse(report['memory_referenced'])
+        self.assertFalse(report['memory_applied'])
         mem,book=self._store()
         try:
             rows=mem.db.execute('SELECT q.*,t.kind FROM v08_queue q JOIN trials t ON q.trial_id=t.id').fetchall()
@@ -160,7 +168,11 @@ class V08Tests(unittest.TestCase):
             report=execute_batch(self.config,self.plan,adapter=script)
             self.assertEqual(report['status'],'active')
             self.assertEqual(report['new_trials'],1)
-            if cycle>0: self.assertTrue(report['memory_used'])
+            if cycle>0:
+                self.assertTrue(report['memory_retrieved'])
+                self.assertTrue(report['memory_referenced'])
+                self.assertTrue(report['memory_applied'])
+                self.assertFalse(report['memory_effectiveness_causally_proven'])
         mem,book=self._store()
         try:
             self.assertEqual(mem.db.execute('SELECT count(*) FROM v08_batches').fetchone()[0],3)
@@ -202,6 +214,102 @@ class V08Tests(unittest.TestCase):
                 [x['topic'] for x in book.memory_for('novel-v08',None)])
             self.assertIn('contradicted',[r[0] for r in mem.db.execute('SELECT status FROM v08_knowledge')])
         finally:mem.close()
+
+    def test_memory_retrieved_but_ignored_is_not_applied(self):
+        from verification.v08_genuine_llm_acceptance import audit_real_rounds
+        class IgnoreMemory(CatalogDerivedScript):
+            def complete(self, phase, messages, schema, model):
+                result=super().complete(phase,messages,schema,model)
+                if phase=="strategist":
+                    call=result.data["choices"][0]["message"]["tool_calls"][0]["function"]
+                    parsed=json.loads(call["arguments"])
+                    for choice in parsed["decisions"]:
+                        choice["memory_ids_used"]=[]
+                        choice["memory_application"]=[]
+                        choice["memory_effect"]="No earlier evidence influenced this decision"
+                    call["arguments"]=json.dumps(parsed)
+                return result
+        adapter=IgnoreMemory()
+        responses=[execute_batch(self.config,self.plan,adapter=adapter) for _ in range(2)]
+        self.assertTrue(responses[1]["memory_retrieved"])
+        self.assertEqual(responses[1]["memory_referenced"],[])
+        self.assertEqual(responses[1]["memory_applied"],[])
+        audited=audit_real_rounds(self.config["database"],"novel-v08",
+                                  responses,min_rounds=2)
+        self.assertEqual(audited["status"],"INCOMPLETE")
+        self.assertIn("no_cross_batch_memory_applied",audited["reasons"])
+        self.assertFalse(audited["memory_effectiveness_causally_proven"])
+
+    def test_memory_application_has_bound_decision_and_source(self):
+        responses=[execute_batch(self.config,self.plan,adapter=s)
+                   for s in (CatalogDerivedScript(),CatalogDerivedScript())]
+        self.assertTrue(responses[1]["memory_applied"])
+        mem,book=self._store()
+        try:
+            events=[json.loads(x[0]) for x in mem.db.execute(
+                "SELECT payload FROM events WHERE kind='v08_memory_influence' ORDER BY id")]
+            self.assertEqual(len(events),2)
+            item=events[1]["decision_memory_refs"][0]
+            self.assertEqual(item["action"],"test")
+            self.assertEqual(item["memory_application"][0]["memory_id"],
+                             responses[1]["memory_applied"][0])
+            self.assertTrue(item["memory_application"][0]["evidence_ids"])
+            self.assertTrue(item["memory_application"][0]["evidence_rationale"])
+            self.assertTrue(events[1]["decision_explanations_are_not_causal_proof"])
+            self.assertTrue(book.audit("novel-v08")["event_chain_verified"])
+        finally:mem.close()
+
+    def test_unretrieved_memory_reference_is_rejected_before_simulation(self):
+        class InventMemory(CatalogDerivedScript):
+            def complete(self,phase,messages,schema,model):
+                result=super().complete(phase,messages,schema,model)
+                if phase=="strategist":
+                    fn=result.data["choices"][0]["message"]["tool_calls"][0]["function"]
+                    value=json.loads(fn["arguments"])
+                    item=value["decisions"][0]
+                    item["memory_ids_used"]=["nonexistent-memory-id"]
+                    item["memory_application"]=[{
+                        "memory_id":"nonexistent-memory-id",
+                        "decision_change":"Prioritize this study due to a fabricated memory record",
+                        "evidence_rationale":"The non-existent record is not backed by any study evidence"}]
+                    fn["arguments"]=json.dumps(value)
+                return result
+        with self.assertRaises(ResearchError):
+            execute_batch(self.config,self.plan,adapter=InventMemory())
+        mem,book=self._store()
+        try:
+            self.assertEqual(book.status("novel-v08")["status"],"paused_fault")
+            self.assertEqual(mem.db.execute("SELECT COUNT(*) FROM v08_queue").fetchone()[0],0)
+        finally:mem.close()
+
+    def test_superseded_memory_cannot_be_forced_back_into_strategist(self):
+        first=execute_batch(self.config,self.plan,adapter=CatalogDerivedScript())
+        self.assertTrue(first["knowledge_revisions"])
+        old_id=first["knowledge_revisions"][0]
+        mem,book=self._store()
+        try:
+            row=mem.db.execute("SELECT topic,body FROM v08_knowledge WHERE id=?",
+                               (old_id,)).fetchone()
+            previous=json.loads(row["body"])
+            stale=dict(previous,state="stale",contradicting_evidence_ids=[])
+            book.learn("novel-v08",None,[stale])
+        finally:mem.close()
+        class ForceOld(CatalogDerivedScript):
+            def complete(self,phase,messages,schema,model):
+                result=super().complete(phase,messages,schema,model)
+                if phase=="strategist":
+                    fn=result.data["choices"][0]["message"]["tool_calls"][0]["function"]
+                    value=json.loads(fn["arguments"])
+                    choice=value["decisions"][0]
+                    choice["memory_ids_used"]=[old_id]
+                    choice["memory_application"]=[{
+                        "memory_id":old_id,
+                        "decision_change":"Increase testing priority based on a now-stale historical hypothesis",
+                        "evidence_rationale":"A historical outcome exists but its topic was superseded and must not be reused"}]
+                    fn["arguments"]=json.dumps(value)
+                return result
+        with self.assertRaises(ResearchError):
+            execute_batch(self.config,self.plan,adapter=ForceOld())
 
     def test_cannot_modify_frozen_plan(self):
         altered=copy.deepcopy(self.plan)
