@@ -341,7 +341,8 @@ module("cli",worker_lock=worker_lock)
 
 from alpharesearch.campaign_core import CampaignStore,create_campaign_plan
 from alpharesearch.campaign_runner import (
-    CampaignDemoDiscovery,execute_campaign,control_campaign,import_legacy_ideas)
+    execute_campaign,control_campaign,import_legacy_ideas)
+from alpharesearch._demo_fixtures import CampaignDemoDiscovery
 
 def config(path):
     fields={name:{"kind":"MATRIX","point_in_time":True,

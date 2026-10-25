@@ -10,6 +10,8 @@ import json
 
 from .agent import ResearchAgent, tool
 from .common import ResearchError, digest, dumps
+from .formula_quality import validate_units
+from .proposal_audit import begin, captured, failure, verify_source
 from .research import TAGS
 from .validator import InvalidExpression, OPERATORS
 
@@ -57,6 +59,9 @@ def validate_idea(engine, idea, domains, parents):
     if parent is not None and (not isinstance(parent, str) or parent not in parents):
         raise ResearchError('改进假设必须引用当前计划中的已执行父假设')
     val = engine.validator.validate(idea['expression'])
+    # Extra Live preflight; existing AST validation/fingerprints remain unchanged.
+    if engine.config['mode'] == 'live':
+        validate_units(idea['expression'], engine.config['catalog_data'])
     fields = approved_fields(engine.config)
     if not any(name in fields and fields[name]['kind'] == 'MATRIX'
                and idea['domain'] in fields[name]['research_domains'] for name in val.fields):
@@ -118,35 +123,61 @@ class DiscoveryAgent(ResearchAgent):
                 'operators': sorted(set(self.engine.config['catalog_data']['operators']) & OPERATORS.keys()),
                 'catalog_slice_only': True, 'notes': plan['research_notes'], 'discovery_feedback': feedback,
                 'maximum_ideas': plan['ideas_per_cycle']})}]
+        messages[0]['content'] += (
+            '\nSource and expression quality: each new idea must state '
+            'a distinct economic mechanism, plausible direction, data timing, field units, '
+            'falsifiable outcome and the one change from its tested parent if revising. '
+            'Do not recycle a predefined expression list or merely shift lookback windows. '
+            'Keep formula and units coherent; uncertainty is not verified evidence.')
         messages[0]['content'] += '\nFixed research program:\n'+self.engine.config['program_text']
-        response = self.complete(messages, [batch_tool])
+        # Every attempted LLM batch gets a new append-only correlation ID.
+        self.last_batch_provenance = None
+        batch_id = begin(self.engine.memory, self.engine.run_id, cycle=cycle,
+            model=self.model, prompt_hash=digest(messages), tool_schema_hash=digest(batch_tool))
+        try:
+            response = self.complete(messages, [batch_tool])
+        except Exception as error:
+            failure(self.engine.memory, self.engine.run_id, batch_id=batch_id,
+                error=error, phase='model_request')
+            raise  # Strictly no Demo/fixed-seed fallback, including API failures.
+        receipt = None
         try:
             calls = response.data['choices'][0]['message']['tool_calls']
             if not isinstance(calls, list) or len(calls) != 1 or calls[0]['function']['name'] != 'research_batch':
                 raise ValueError('unexpected tool')
-            args = json.loads(calls[0]['function']['arguments'])
+            raw = calls[0]['function']['arguments']
+            receipt = captured(self.engine.memory, self.engine.run_id,
+                batch_id=batch_id, requested_model=self.model, response=response,
+                raw_arguments=raw, tool_call_id=calls[0].get('id'))
+            if receipt['parse_status'] != 'structured':
+                raise ValueError('malformed or oversized model proposal batch')
+            args = json.loads(raw)
             if not isinstance(args, dict) or set(args) != {'ideas'} or not isinstance(args['ideas'], list):
                 raise ValueError('invalid batch')
             if len(args['ideas']) > plan['ideas_per_cycle']:
                 raise ValueError('too many ideas')
+            # Fail BEFORE returning the batch: do not let a forged gateway model
+            # label reach the scheduler or a persistent research candidate.
+            verify_source(self.engine.memory, self.engine.run_id, batch_id, args['ideas'])
+            # The receipt already contains each pre-validation proposal SHA.
+            self.last_batch_provenance = {
+                'batch_id': batch_id, 'proposal_sha256': receipt['proposal_sha256'],
+                'proposal_count': len(args['ideas']), 'requested_model': self.model,
+                'response_id': receipt['response_id'],
+                'tool_call_id': receipt['tool_call_id'],
+                'source_kind': receipt['source_kind'],
+            }
             return args['ideas']
-        except (KeyError, IndexError, TypeError, ValueError) as error:
+        except (KeyError, IndexError, TypeError, ValueError, ResearchError) as error:
+            if receipt is None:
+                # No valid research_batch tool call; audit the failed response
+                # without persisting arbitrary untrusted response content.
+                captured(self.engine.memory, self.engine.run_id,
+                    batch_id=batch_id, requested_model=self.model, response=response,
+                    raw_arguments='', tool_call_id=None,
+                    parse_status='invalid_tool_call')
+            failure(self.engine.memory, self.engine.run_id, batch_id=batch_id,
+                    error=error, phase='response_validation')
             raise ResearchError('模型未返回合法研究批次；本次调用已计费，计划暂停') from error
 
 
-class DemoDiscovery:
-    """Deterministic fixtures to exercise the loop. This is never an AI baseline result."""
-    def generate(self, plan, feedback, cycle):
-        seeds = [('-rank(ts_delta(close, 5) / (ts_std_dev(returns, 20) + 0.01))', 'reversion'),
-                 ('-rank(ts_corr(close, volume, 10))', 'liquidity'),
-                 ('rank(ts_mean(returns, 60))', 'momentum'),
-                 ('-rank(ts_std_dev(returns, 30))', 'volatility'),
-                 ('-rank((vwap - close) / close)', 'reversion'),
-                 ('rank(ts_delta(volume, 20) / (ts_mean(volume, 60) + 1))', 'liquidity')]
-        start = (cycle-1)*plan['ideas_per_cycle']
-        return [{'title': '合成流程样例 '+str(i+1), 'domain': 'price_volume',
-                 'mechanism': '仅检验工程闭环；此固定模板不是 AI 研究结果。', 'expected_sign': 'conditional',
-                 'horizon_days': 5, 'falsification': '在独立研究数据中无法复现时放弃；当前只运行合成数据。',
-                 'expression': expr, 'source': 'DEMO deterministic fixture; no empirical evidence',
-                 'family': family, 'parent_idea_id': None, 'change': '独立模板样例'}
-                for i, (expr, family) in enumerate(seeds[start:start+plan['ideas_per_cycle']], start)]

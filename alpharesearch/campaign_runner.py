@@ -12,6 +12,8 @@ from pathlib import Path
 
 from .common import ResearchError, digest, dumps, now
 from .discovery import DiscoveryAgent, validate_idea, approved_fields
+from .formula_quality import find_equivalent, validate_units
+from .proposal_audit import verify_source, verify_source_hashes
 from .engine import Engine
 from .memory import Memory
 from .campaign_core import (CampaignStore, create_campaign_plan,
@@ -83,46 +85,6 @@ class CampaignDiscoveryAgent(DiscoveryAgent):
                             "vendor_charge":"unknown"})
             raise
 
-
-class CampaignDemoDiscovery:
-    """Diverse deterministic engineering fixtures; no empirical alpha claims."""
-    _forms = [
-        ("rank(ts_mean(returns,{w}))", "momentum"),
-        ("-rank(ts_delta(close,{w}))", "reversion"),
-        ("-rank(ts_std_dev(returns,{w}))", "volatility"),
-        ("-rank(ts_corr(close,volume,{w}))", "liquidity"),
-        ("rank(ts_rank(volume,{w}))", "momentum"),
-        ("-rank(ts_zscore(close,{w}))", "reversion"),
-        ("rank(ts_sum(returns,{w}))", "momentum"),
-        ("-rank(ts_decay_linear(volume,{w}))", "liquidity"),
-    ]
-    def __init__(self, config):
-        self.config = config
-
-    def generate(self, plan, feedback, cycle):
-        approved = approved_fields(self.config)
-        if "price_volume" not in plan["domains"] or not all(
-                name in approved for name in ("returns", "close", "volume")):
-            return []
-        maximum = self.config["rules"]["max_window"]
-        count = plan["ideas_per_cycle"]
-        items = []
-        start = (cycle-1)*count
-        for index in range(start, start+count):
-            form, family = self._forms[index % len(self._forms)]
-            window = 5 + index // len(self._forms)
-            if window > maximum:
-                break
-            items.append({
-                "title": "Campaign synthetic fixture %d" % (index+1),
-                "domain": "price_volume", "mechanism": "Only an offline scheduling fixture",
-                "expected_sign": "conditional", "horizon_days": 5,
-                "falsification": "Independent empirical validation not performed",
-                "expression": form.format(w=window),
-                "source": "DEMO synthetic fixture; not market evidence",
-                "family": family, "parent_idea_id": None,
-                "change": "Independent deterministic test formula"})
-        return items
 
 class CampaignRunner:
     def __init__(self, engine, plan, store, limits, *, generator=None):
@@ -233,9 +195,104 @@ class CampaignRunner:
                 if v["trial_id"] and v["state"] in ("evaluated", "promising", "deferred") and
                 self.engine.memory.latest(v["trial_id"]) is not None}
 
-    def _register_batch(self, ideas, cycle, *, original_ids=None):
+    def _verify_batch_source(self, ideas, cycle, provenance):
+        """Mandatory source barrier before ANY Campaign LLM queue mutation.
+
+        Campaign Live is still disabled at its public entry point. This guard
+        also protects the internal registrar and Demo LLM campaigns, which
+        must never claim fixture output as authenticated LLM proposals.
+        """
+        needs_llm = self.engine.config['mode'] == 'live' or self.plan['generator'] == 'llm'
+        if not needs_llm:
+            if provenance is not None:
+                raise ResearchError('Demo fixture 批次不得冒用 LLM 来源证明')
+            return None
+        if self.plan['generator'] != 'llm':
+            raise ResearchError('正式 Live Campaign 严禁 Demo 固定模板')
+        if self.engine.config['mode'] == 'live':
+            if (type(self.generator) is not CampaignDiscoveryAgent or
+                    self.generator.engine is not self.engine or
+                    self.generator.model not in {
+                        self.engine.config['llm'].get('model'),
+                        self.engine.config['llm'].get('fast_model'),
+                        self.engine.config['llm'].get('reasoning_model')}):
+                raise ResearchError('Live Campaign 必须使用绑定当前 Engine 的授权 DiscoveryAgent')
+        if not isinstance(provenance, dict) or set(provenance) != {
+                'batch_id', 'proposal_sha256', 'proposal_count', 'requested_model',
+                'response_id', 'tool_call_id', 'source_kind'}:
+            raise ResearchError('Campaign LLM 批次缺少完整来源证明，禁止入队')
+        batch_id = provenance['batch_id']
+        receipt = verify_source(self.engine.memory, self.engine.run_id, batch_id, ideas)
+        # No caller is allowed to change an original response ID, model role,
+        # proposal ordering or source label after the model reply was audited.
+        for key in provenance:
+            if provenance[key] != receipt.get(key):
+                raise ResearchError('Campaign 提案关联收据不一致：' + key)
+        if receipt['source_kind'] != 'authenticated_llm_tool_call':
+            raise ResearchError('非 LLM 工具提案不能入队')
+        started = [json.loads(r[0]) for r in self.engine.memory.db.execute(
+            "SELECT payload FROM events WHERE run_id=? AND kind='llm_batch_started'",
+            (self.engine.run_id,)) if json.loads(r[0]).get('batch_id') == batch_id]
+        if len(started) != 1 or started[0].get('cycle') != cycle:
+            raise ResearchError('Campaign LLM 提案来源周期与入队周期不同')
+        prior = [json.loads(row[0]) for row in self.engine.memory.db.execute(
+            "SELECT payload FROM events WHERE kind='campaign_proposal_source'")
+            if json.loads(row[0]).get('campaign_id') == self.cid and
+            json.loads(row[0]).get('batch_id') == batch_id]
+        if prior:
+            raise ResearchError('同一 LLM 工具响应批次已经登记，不允许重放')
+        return receipt
+
+    def _require_candidate_source(self, item):
+        """Recheck persistent proof across Runs immediately before simulation."""
+        if self.engine.config['mode'] != 'live' and self.plan['generator'] != 'llm':
+            return
+        events = []
+        for row in self.engine.memory.db.execute(
+                "SELECT run_id,payload FROM events WHERE kind='campaign_proposal_source'"):
+            body = json.loads(row['payload'])
+            if body.get('campaign_id') == self.cid and body.get('idea_id') == item['id']:
+                events.append((row['run_id'], body))
+        if len(events) != 1:
+            raise ResearchError('待实验候选缺少唯一且持久的 LLM 来源绑定')
+        source_run, proof = events[0]
+        if (proof.get('proposal_sha256') != digest(item['idea']) or
+                not self.engine.memory.db.execute(
+                    'SELECT 1 FROM campaign_runs WHERE campaign_id=? AND run_id=?',
+                    (self.cid, source_run)).fetchone()):
+            raise ResearchError('候选内容/来源 Run 与持久审计不一致')
+        # All original responses, including invalid/rejected/duplicate attempts,
+        # are hash-anchored separately from mutable queue state. Never invent a
+        # missing proposal when a batch only partly survived a process crash.
+        attempts = []
+        for row in self.engine.memory.db.execute(
+                "SELECT run_id,payload FROM events WHERE kind='campaign_proposal_attempt'"):
+            event = json.loads(row['payload'])
+            if (row['run_id'] == source_run and event.get('campaign_id') == self.cid
+                    and event.get('batch_id') == proof['batch_id']):
+                attempts.append(event)
+        attempts.sort(key=lambda event: event.get('proposal_index', -1))
+        if [event.get('proposal_index') for event in attempts] != list(range(len(attempts))):
+            raise ResearchError('模型批次缺少已入库/重复/拒绝的逐条提案哈希')
+        origin = attempts[proof['proposal_index']]
+        if (origin.get('idea_id') != item['id'] or
+                origin.get('proposal_sha256') != proof.get('proposal_sha256')):
+            raise ResearchError('Campaign 候选来源与初始提案序号不匹配')
+        receipt = verify_source_hashes(
+            self.engine.memory, source_run, proof['batch_id'],
+            [event['proposal_sha256'] for event in attempts])
+        if any(proof.get(local) != receipt.get(remote) for local, remote in (
+                ('model', 'requested_model'), ('response_id', 'response_id'),
+                ('tool_call_id', 'tool_call_id'))):
+            raise ResearchError('候选模型身份与原始 LLM 工具响应不匹配')
+        return receipt
+
+    def _register_batch(self, ideas, cycle, *, original_ids=None, provenance=None):
         if not isinstance(ideas, list) or len(ideas) > self.plan["ideas_per_cycle"]:
             raise ResearchError("生成批次超出冻结上限")
+        # The source proof must be complete BEFORE any queue insertion, even
+        # when invoked directly, or when the Campaign is resumed from a prior Run.
+        self._verify_batch_source(ideas, cycle, provenance)
         parents = self._parents()
         accepted = 0
         for index, idea in enumerate(ideas):
@@ -247,7 +304,36 @@ class CampaignRunner:
                 valid, failure = None, str(error)
             ident, created = self.store.add(self.cid, idea, cycle, validated=valid,
                                             reason=failure, original_id=original)
+            if valid is not None and self.engine.config['mode'] == 'live':
+                units = validate_units(idea['expression'], self.engine.config['catalog_data'])
+                self._record('unit_preflight', {
+                    'idea_id': ident, 'unit_evidence_status': units['unit_status'],
+                    'warning_codes': sorted({v['code'] for v in units['warnings']})})
+            if self.plan['generator'] == 'llm':
+                self._record('proposal_attempt', {
+                    'idea_id': ident, 'cycle': cycle, 'proposal_index': index,
+                    'proposal_sha256': digest(idea), 'batch_id': provenance['batch_id'],
+                    'new_queue_record': created,
+                    'source_kind': 'authenticated_llm_tool_call'})
+                if created:
+                    self._record('proposal_source', {
+                        'idea_id': ident, 'cycle': cycle, 'proposal_index': index,
+                        'proposal_sha256': digest(idea), 'batch_id': provenance['batch_id'],
+                        'response_id': provenance['response_id'],
+                        'tool_call_id': provenance['tool_call_id'],
+                        'model': provenance['requested_model'],
+                        'source_kind': 'authenticated_llm_tool_call'})
             if not created or valid is None:
+                continue
+            equivalent = find_equivalent(self.engine.memory, self.engine.context,
+                idea['expression'], valid.fingerprint, additional=[
+                    {'id': row['id'], 'expression': row['idea'].get('expression'),
+                     'fingerprint': row['fingerprint']}
+                    for row in self.store.rows(self.cid) if row.get('fingerprint')
+                    and row['id'] != ident])
+            if equivalent:
+                self.store.move(ident, 'deferred', 'l1',
+                    'normalized_formula_equivalent_requires_review')
                 continue
             match = self.store.external_duplicate(
                 self.plan["external_libraries"], self.engine.context, valid.fingerprint,
@@ -264,6 +350,9 @@ class CampaignRunner:
     def _generate(self):
         if self.generator is None:
             if self.plan["generator"] == "demo":
+                if self.engine.config['mode'] != 'demo':
+                    raise ResearchError('Live 无权载入 Campaign 测试种子')
+                from ._demo_fixtures import CampaignDemoDiscovery
                 self.generator = CampaignDemoDiscovery(self.engine.config)
             else:
                 self.generator = CampaignDiscoveryAgent(
@@ -291,7 +380,9 @@ class CampaignRunner:
                     self._record("model_route", {"task": "feedback_revision" if feedback["recent"] else "exploration",
                                                 "role": role, "model": selected})
             batch = self.generator.generate(self.plan, feedback, cycle)
-            count = self._register_batch(batch, cycle)
+            source = (self.generator.last_batch_provenance
+                      if isinstance(self.generator, DiscoveryAgent) else None)
+            count = self._register_batch(batch, cycle, provenance=source)
         except Exception:
             self.store.end_generation(self.cid, cycle, "failed", 0)
             # Do not retry a non-idempotent API request automatically.
@@ -339,6 +430,9 @@ class CampaignRunner:
                 self.store.move(item["id"], "queued", "l1", "family_cooldown_elapsed")
 
     def _run_base(self, item):
+        # Reject unaudited restored candidates before changing status, writing
+        # trial records or claiming a Simulation (not just on initial enqueue).
+        self._require_candidate_source(item)
         self.store.move(item["id"], "testing", "l1", "L1_base_simulation_prepared")
         idea = item["idea"]
         try:
@@ -483,6 +577,7 @@ class CampaignRunner:
         # silently replay a task that may have performed a remote write.
         stuck = self.store.rows(self.cid, state="testing")
         for item in stuck:
+            self._require_candidate_source(item)
             val = self.engine.validator.validate(item["idea"]["expression"])
             trial_id = item["trial_id"] or self.engine.memory.existing_trial(
                 self.engine.context, val.fingerprint)

@@ -1,0 +1,149 @@
+{
+  "audit": {
+    "title": "AlphaResearch real autonomous mining provenance audit",
+    "run_id": "17b489ba634c48be",
+    "study_id": "autoresearch-003",
+    "mode": "read_only",
+    "no_simulation_submit_llm_dbwrite": true,
+    "generated_at_utc": "2026-10-25T07:37:50+00:00"
+  },
+  "git_consistency": {
+    "current_head": "4e2f6dda5ac890ead1449f9aa29c2d66535bcd04",
+    "run_snapshot_git_commit": "4e2f6dda5ac890ead1449f9aa29c2d66535bcd04",
+    "match": true,
+    "plan_sha256": "167790cdea5d383960dae3e143a125dd006213d10ac0155094f0b6b561f5cd9a"
+  },
+  "frozen_plan": {
+    "generator": "llm",
+    "research_arm_agent": "autonomous_llm",
+    "llm_model": "moonshotai/kimi-k3-free",
+    "llm_base_url": "https://api.qnaigc.com/v1",
+    "mode": "live",
+    "domains": ["price_volume"],
+    "max_simulations": 4,
+    "max_ideas": 4,
+    "max_cycles": 3,
+    "ideas_per_cycle": 3,
+    "automatic_submit": false,
+    "objective": "在真实 BRAIN 数据上，基于已审核量价字段自主提出经济机制多样的 Alpha 假设，依据真实模拟结果与固定评价反馈进行有依据的迭代改进，产出可供人工审核的候选",
+    "forbidden_formulas": [
+      "rank(ts_delta(close,60)/ts_delay(close,60))",
+      "rank((vwap-close)/close)",
+      "-rank(ts_std_dev(returns,20))",
+      "-rank(ts_delta(close,5))"
+    ]
+  },
+  "raw_llm_transcript_persisted": false,
+  "raw_research_batch_in_db": 0,
+  "llm_cost_records": {
+    "total_llm_calls": 3,
+    "http_200": 2,
+    "transport_error": 1,
+    "models_seen": ["moonshotai/kimi-k3-free"],
+    "secrets_in_detail": false
+  },
+  "alphas": [
+    {
+      "index": 1,
+      "trial_id": "c9c43f8d795d44d5",
+      "idea_id": "5eee67bc71ef4a1d95ee",
+      "alpha_id": "1YjA5r8k",
+      "expression": "-rank(ts_corr(close, volume, 10))",
+      "family": "sentiment",
+      "parent_id": null,
+      "source_recorded": "autonomy:autoresearch-003:5eee67bc71ef4a1d95ee",
+      "verdict": "LLM_ORIGINAL_VERIFIABLE",
+      "red_flag": "EXPRESSION_BYTE_IDENTICAL_TO_DemoDiscovery.seeds[1]; NOT template-generated-this-run (generator=llm, DemoDiscovery not invoked, seed not in prompt)",
+      "demo_seed_match": true,
+      "historical_inheritance": false,
+      "in_forbidden_list": false,
+      "metrics": {"sharpe": 1.12, "fitness": 0.47, "turnover": 0.3107, "sub_universe_sharpe": 0.39},
+      "gate": "FAIL (LOW_SHARPE/LOW_FITNESS/LOW_SUB_UNIVERSE_SHARPE)"
+    },
+    {
+      "index": 2,
+      "trial_id": "ec0c89c2cfd94835",
+      "idea_id": "50588c13032e005c7faf",
+      "alpha_id": "78oRgXW2",
+      "expression": "-rank(ts_mean((high - low) / close, 20))",
+      "family": "volatility",
+      "parent_id": null,
+      "source_recorded": "autonomy:autoresearch-003:50588c13032e005c7faf",
+      "verdict": "LLM_ORIGINAL_VERIFIABLE",
+      "red_flag": null,
+      "demo_seed_match": false,
+      "historical_inheritance": false,
+      "in_forbidden_list": false,
+      "metrics": {"sharpe": 0.11, "fitness": 0.05, "turnover": 0.0499, "sub_universe_sharpe": -0.05},
+      "gate": "FAIL (LOW_SHARPE/LOW_FITNESS/LOW_SUB_UNIVERSE_SHARPE)"
+    },
+    {
+      "index": 3,
+      "trial_id": "31c297f7d8764e94",
+      "idea_id": "e78f1d1644c18a004067",
+      "alpha_id": "88vxgQwm",
+      "expression": "rank(ts_mean(abs(returns) / (volume + 1), 20))",
+      "family": "liquidity",
+      "parent_id": null,
+      "source_recorded": "autonomy:autoresearch-003:e78f1d1644c18a004067",
+      "verdict": "LLM_ORIGINAL_VERIFIABLE",
+      "red_flag": null,
+      "demo_seed_match": false,
+      "historical_inheritance": false,
+      "in_forbidden_list": false,
+      "metrics": {"sharpe": -1.07, "fitness": -0.72, "turnover": 0.0301, "sub_universe_sharpe": -0.72},
+      "gate": "FAIL (LOW_SHARPE/LOW_FITNESS/LOW_SUB_UNIVERSE_SHARPE/UNITS)"
+    },
+    {
+      "index": 4,
+      "trial_id": "4380c7d28b3441a4",
+      "idea_id": "e85d31a80e6f6d47ebb4",
+      "alpha_id": "bl817a2Z",
+      "expression": "-rank(ts_decay_linear(ts_corr(close, volume, 10), 5))",
+      "family": "sentiment",
+      "parent_id": "c9c43f8d795d44d5",
+      "parent_idea_id": "5eee67bc71ef4a1d95ee",
+      "source_recorded": "autonomy:autoresearch-003:e85d31a80e6f6d47ebb4",
+      "verdict": "LLM_ORIGINAL_VERIFIABLE",
+      "verdict_note": "parent-child revision; feedback-driven",
+      "red_flag": null,
+      "demo_seed_match": false,
+      "historical_inheritance": false,
+      "in_forbidden_list": false,
+      "feedback_received_before_revision": true,
+      "feedback_source_event": "autonomy_feedback id=26 (2026-10-24T19:14:50Z) carried parent metrics fitness=0.47/sharpe=1.12/turnover=0.3107, precedes revision idea id=31 (19:26:59Z)",
+      "metrics": {"sharpe": 1.05, "fitness": 0.47, "turnover": 0.2498, "sub_universe_sharpe": 0.36},
+      "parent_metric_delta": {"sharpe": -0.07, "fitness": 0.0, "turnover": -0.0609},
+      "gate": "FAIL (LOW_SHARPE/LOW_FITNESS/LOW_SUB_UNIVERSE_SHARPE)"
+    }
+  ],
+  "statistics": {
+    "truly_independent_mechanisms": 3,
+    "historical_inheritance": 0,
+    "parameter_or_rule_derived": 0,
+    "template_reuse_actual_generation": 0,
+    "untraceable": 0,
+    "red_flag_expression_coincidence_with_demo_seed": 1
+  },
+  "brain_authenticity": {
+    "all_from_real_brain": true,
+    "api_base_url": "https://api.worldquantbrain.com",
+    "results_mode": "live",
+    "alpha_type": "REGULAR",
+    "any_demo_prefix": false,
+    "account_id_masked": "ZZ5***66",
+    "account_ref_masked": "ACCT_REF_MASKED",
+    "evidence": "per-result evidence_source.responses payload_sha256 for /alphas,/check,/correlations/self; transport=account_http",
+    "submissions": 0,
+    "promotions": 0
+  },
+  "capability_assessment": {
+    "autonomous_hypothesis_generation": "ESTABLISHED",
+    "autonomous_feedback_evolution": "ESTABLISHED (verified: revision #4 driven by parent #1 real metrics 0.47/1.12/0.3107)",
+    "real_alpha_quality_discovery": "NOT_YET_ACHIEVED (all 4 failed publication gates; best Sharpe 1.12 < 1.25; 0 promotions)"
+  },
+  "limitations": [
+    "Raw LLM request/response transcript not persisted; byte-level research_batch cross-check impossible. Provenance inferred from generator flag, cost records, agent identity, idea narrative, and internal expression consistency.",
+    "Alpha #1 expression coincidentally matches DemoDiscovery fixed seed; verified NOT generated by template this run, but recommend explicitly excluding demo seeds from prompt/forbidden layer for interpretability."
+  ]
+}

@@ -202,12 +202,21 @@ class AutonomyTests(Base):
         self.live(); plan = self.plan(); sim = FixtureSimulator()
         sim.account_ref = digest('TEST_ONLY')
         estimate = preview_plan(self.config, plan)
-        with patch('alpharesearch.probe.require_smoke_receipt'):
+        response = Response(200, {}, {'id': 'offline_test_response', 'model': 'TEST_MODEL',
+            'choices': [{'message': {'tool_calls': [{'id': 'offline_tool', 'function':
+                {'name': 'research_batch', 'arguments': json.dumps({'ideas': [idea()]})}}]}}]})
+        self.config['llm']['model'] = 'TEST_MODEL'
+        plan = self.plan()
+        estimate = preview_plan(self.config, plan)
+        with patch('alpharesearch.probe.require_smoke_receipt'), \
+             patch.dict(os.environ, {'LLM_API_KEY': 'TEST_ONLY'}), \
+             patch.object(DiscoveryAgent, 'complete', return_value=response):
             value = execute_plan(self.config, plan, Path(self.tmp.name)/'review.json', sim, 3,
-                                 estimate['preview_sha256'], generator=BatchGenerator([[idea()]]))
+                                 estimate['preview_sha256'])
         self.assertEqual(value['counts']['simulations'], 3)
         self.assertEqual(len(sim.starts), 3)
         self.assertEqual(sim.submit_calls, 0)
+        self.assertEqual(value['ideas'][0]['generator_origin'], 'llm')
 
     def test_cli_live_confirmation_is_checked_before_login(self):
         from alpharesearch.cli import main
@@ -231,9 +240,15 @@ class AutonomyTests(Base):
             def finish(self, location):
                 if self.broken: raise PollTimeout('TEST interruption')
                 return super().finish(location)
-        self.live(); plan = self.plan(); sim = Interrupted()
-        loop = self.loop(plan, sim); loop.add_batch([idea()])
-        with self.assertRaises(PollTimeout): loop.test(loop.schedule())
+        self.live(); self.config['llm']['model']='TEST_MODEL'
+        plan = self.plan(); sim = Interrupted()
+        loop = self.loop(plan, sim)
+        response = Response(200, {}, {'id':'offline_test_result', 'model':'TEST_MODEL',
+            'choices':[{'message': {'tool_calls': [{'id':'offline_tool',
+                'function':{'name':'research_batch','arguments':json.dumps({'ideas':[idea()]})}}]}}]})
+        with patch.dict(os.environ, {'LLM_API_KEY':'TEST_ONLY'}), \
+             patch.object(DiscoveryAgent, 'complete', return_value=response):
+            with self.assertRaises(PollTimeout): loop.run()
         self.assertEqual(len(sim.starts), 1)
         with self.assertRaises(ResearchError): loop.run()
         sim.broken = False
@@ -257,7 +272,7 @@ class AutonomyTests(Base):
 
     def test_real_model_adapter_accepts_only_one_structured_batch_and_charges_usage(self):
         self.config['llm']['model'] = 'TEST_MODEL'; loop = self.loop(self.plan(generator='llm'))
-        data = {'choices': [{'message': {'tool_calls': [{'function': {'name': 'research_batch',
+        data = {'model': 'TEST_MODEL', 'choices': [{'message': {'tool_calls': [{'function': {'name': 'research_batch',
             'arguments': json.dumps({'ideas': [idea()]})}}]}}], 'usage': {'prompt_tokens': 100, 'completion_tokens': 50}}
         transport = ScriptedTransport([Response(200, {}, data)])
         with patch.dict(os.environ, {'LLM_API_KEY': 'TEST_ONLY'}):

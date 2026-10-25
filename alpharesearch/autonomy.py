@@ -12,7 +12,9 @@ from contextlib import closing
 from pathlib import Path
 
 from .common import ResearchError, digest, now, snapshot, dumps
-from .discovery import DOMAINS, coverage, validate_idea, similarity, DiscoveryAgent, DemoDiscovery
+from .discovery import DOMAINS, coverage, validate_idea, similarity, DiscoveryAgent
+from .formula_quality import find_equivalent, structural_similarity, validate_units
+from .proposal_audit import verify_source
 from .engine import Engine
 from .http import ApiError
 from .preview import preview, confirm
@@ -125,6 +127,13 @@ class AutonomousLoop:
                                           (engine.run_id,)).fetchone()
         if not record or record[0] != plan['plan_sha256']:
             raise ResearchError('执行器未绑定自主研究计划')
+        if engine.config['mode'] == 'live':
+            if plan['generator'] != 'llm':
+                raise ResearchError('Live 研究只允许冻结的 llm generator')
+            if generator is not None and (type(generator) is not DiscoveryAgent or
+                    generator.engine is not engine or
+                    generator.model != engine.config['llm']['model']):
+                raise ResearchError('Live 只接受绑定当前执行 Run 的 DiscoveryAgent')
         self.engine, self.plan = engine, plan
         self.generator = generator
 
@@ -172,9 +181,27 @@ class AutonomousLoop:
                 {'metrics': {k: metrics.get(k) for k in ('sharpe', 'fitness', 'turnover')}})
         return values
 
-    def add_batch(self, ideas):
+    def add_batch(self, ideas, *, provenance=None):
         if not isinstance(ideas, list) or len(ideas) > self.plan['ideas_per_cycle']:
             raise ResearchError('假设批次超过冻结上限')
+        if self.engine.config['mode'] == 'live' and len(self.ideas()) + len(ideas) > self.plan['max_ideas']:
+            raise ResearchError('Live LLM 批次超过剩余冻结假设数，禁止部分接受')
+        if self.engine.config['mode'] == 'live':
+            if (provenance is None or type(self.generator) is not DiscoveryAgent or
+                    self.generator.engine is not self.engine or
+                    self.generator.model != self.engine.config['llm']['model'] or
+                    provenance is not getattr(self.generator, 'last_batch_provenance', None)):
+                raise ResearchError('Live 禁止手工假设、固定模板或未经审计的来源')
+            receipt = verify_source(self.engine.memory, self.engine.run_id,
+                                    provenance.get('batch_id'), ideas)
+            if (receipt['requested_model'] != self.engine.config['llm']['model'] or
+                    receipt['response_id'] != provenance.get('response_id') or
+                    receipt['tool_call_id'] != provenance.get('tool_call_id') or
+                    receipt['proposal_sha256'] != provenance.get('proposal_sha256') or
+                    receipt['proposal_count'] != provenance.get('proposal_count')):
+                raise ResearchError('Live 批次来源收据与冻结模型身份不一致')
+            if any(i.get('proposal_batch_id') == provenance['batch_id'] for i in self.ideas()):
+                raise ResearchError('LLM 批次已经入队；禁止重放提案')
         current = self.ideas()
         parents = {i['idea_id'] for i in current if i.get('intent_id') and i['state'] == 'tested'}
         for idea in ideas:
@@ -185,9 +212,32 @@ class AutonomousLoop:
                 val = validate_idea(self.engine, idea, self.plan['domains'], parents)
                 item = {'idea_id': idea_id, 'idea': idea, 'state': 'queued',
                         'fingerprint': val.fingerprint, 'structural_family': val.family, 'nodes': val.nodes}
+                if self.engine.config['mode'] == 'live':
+                    unit_review = validate_units(idea['expression'], self.engine.config['catalog_data'])
+                    item['unit_evidence_status'] = unit_review['unit_status']
+                    item['unit_evidence_warning_codes'] = sorted({
+                        warning['code'] for warning in unit_review['warnings']})
+                prior_ideas = [{'id': x['idea_id'], 'expression': x['idea']['expression'],
+                                'fingerprint': x.get('fingerprint')} for x in self.ideas()
+                               if x.get('fingerprint')]
+                equivalent = find_equivalent(self.engine.memory, self.engine.context,
+                    idea['expression'], val.fingerprint, additional=prior_ideas)
+                if equivalent:
+                    item.update(state='deferred', reason='normalized_equivalent_requires_review',
+                                equivalent_prior_id=equivalent['existing'])
             except ResearchError as error:
                 # Keep every invalid attempt for discovery feedback and multiplicity review.
                 item = {'idea_id': idea_id, 'idea': idea, 'state': 'invalid', 'reason': str(error)}
+            if provenance is not None:
+                item.update(proposal_batch_id=provenance['batch_id'],
+                            proposal_index=len(self.ideas()) - len(current),
+                            proposal_sha256=digest(idea),
+                            model_id=provenance['requested_model'],
+                            response_id=provenance['response_id'],
+                            tool_call_id=provenance['tool_call_id'],
+                            generator_origin='llm')
+            elif self.plan['generator'] == 'demo':
+                item['generator_origin'] = 'offline_demo_fixture'
             self.record('idea', item)
 
     def schedule(self):
@@ -216,7 +266,7 @@ class AutonomousLoop:
             if len(new) > remaining:
                 continue
             domain_count = sum(i['idea']['domain'] == item['idea']['domain'] for i in tested)
-            max_similarity = max((similarity(item['idea']['expression'], e) for e in expressions), default=0.)
+            max_similarity = max((structural_similarity(item['idea']['expression'], e) for e in expressions), default=0.)
             priority = (bool(existing), family_count, domain_count, max_similarity, item['nodes'], item['idea_id'])
             choices.append((priority, item, len(new)))
         if not choices:
@@ -227,8 +277,40 @@ class AutonomousLoop:
             'similarity_is_return_correlation': False, 'remaining_invocation_budget': remaining})
         return item
 
+    def _require_live_item_provenance(self, item):
+        """Read-only check immediately before ANY Live trial operation.
+
+        Registered tasks may bypass register() on recovery; both register() and
+        test() therefore require the same per-candidate original LLM receipt.
+        """
+        if self.engine.config['mode'] != 'live':
+            return
+        batch_id = item.get('proposal_batch_id')
+        if item.get('generator_origin') != 'llm' or not batch_id:
+            raise ResearchError('Live 禁止测试未绑定原始 LLM 提案的候选')
+        members = [p for p in self.ideas() if p.get('proposal_batch_id') == batch_id]
+        members.sort(key=lambda p: p.get('proposal_index', -1))
+        if not members or [p.get('proposal_index') for p in members] != list(range(len(members))):
+            raise ResearchError('LLM 批次候选序号不连续，拒绝恢复未审计实验')
+        receipt = verify_source(self.engine.memory, self.engine.run_id,
+                                batch_id, [p['idea'] for p in members])
+        recorded = next((p for p in members if p['idea_id'] == item.get('idea_id')), None)
+        if (receipt['requested_model'] != self.engine.config['llm']['model'] or
+                item.get('model_id') != receipt['requested_model'] or
+                item.get('response_id') != receipt['response_id'] or
+                item.get('tool_call_id') != receipt['tool_call_id'] or
+                item.get('proposal_sha256') != digest(item['idea']) or
+                recorded is None or
+                recorded.get('trial_id') != item.get('trial_id') or
+                recorded.get('intent_id') != item.get('intent_id') or
+                recorded.get('state') != item.get('state') or
+                recorded.get('idea') != item.get('idea') or
+                recorded.get('proposal_sha256') != digest(item['idea'])):
+            raise ResearchError('候选与 LLM 原始响应的模型、哈希或调用关联不一致')
+
     def register(self, item):
         engine, idea = self.engine, item['idea']
+        self._require_live_item_provenance(item)
         source = 'autonomy:'+self.plan['study_id']+':'+item['idea_id']
         known = [i for i in engine.memory.intents(engine.run_id) if i['source'] == source]
         if known:
@@ -248,6 +330,7 @@ class AutonomousLoop:
         return tid
 
     def test(self, item):
+        self._require_live_item_provenance(item)
         engine = self.engine
         tid = item.get('trial_id') or self.register(item)
         trial = engine.memory.trial(tid)
@@ -291,10 +374,23 @@ class AutonomousLoop:
                 # Generate fresh hypotheses after feedback, while retaining untested alternatives.
                 if can_generate and remaining > 0:
                     if self.generator is None:
-                        self.generator = DemoDiscovery() if self.plan['generator'] == 'demo' else DiscoveryAgent(self.engine)
+                        if self.plan['generator'] == 'demo':
+                            if self.engine.config['mode'] != 'demo':
+                                raise ResearchError('Live 路径严禁使用固定模板生成器')
+                            from ._demo_fixtures import DemoDiscovery
+                            self.generator = DemoDiscovery()
+                        else:
+                            self.generator = DiscoveryAgent(self.engine)
                     self.record('cycle', {'cycle': cycles+1, 'status': 'requested'})
+                    if self.engine.config['mode'] == 'live' and (
+                            type(self.generator) is not DiscoveryAgent or
+                            self.generator.engine is not self.engine or
+                            self.generator.model != self.engine.config['llm']['model']):
+                        raise ResearchError('Live 调度禁止非授权 LLM 生成器，包括 Demo fixtures')
                     batch = self.generator.generate(self.plan, self.feedback()+self.historical_feedback(), cycles+1)
-                    self.add_batch(batch)
+                    provenance = (self.generator.last_batch_provenance
+                                  if type(self.generator) is DiscoveryAgent else None)
+                    self.add_batch(batch, provenance=provenance)
                     if not batch:
                         self.record('generation_finished', {'cycle': cycles+1})
                 item = self.schedule()
@@ -316,9 +412,9 @@ class AutonomousLoop:
                 break
         except KeyboardInterrupt:
             self.record('state', {'status': 'paused', 'reason': 'user_interrupt'})
-        except (ResearchError, ApiError):
+        except Exception:
             self.record('state', {'status': 'paused', 'reason': 'execution_or_model_error_requires_review'})
-            raise
+            raise  # Never switch to the Demo generator after LLM failure.
         return self.summary()
 
     def summary(self):
@@ -349,6 +445,8 @@ class AutonomousLoop:
 
 def execute_plan(config, plan, report_path, simulator=None, maximum=None, confirmation=None, steps=None, generator=None):
     current = preview_plan(config, plan)
+    if config['mode'] == 'live' and generator is not None and type(generator) is not DiscoveryAgent:
+        raise ResearchError('Live 不允许注入离线 BatchGenerator 或模板生成器')
     allowed = confirm(config, current, maximum, confirmation)
     if config['mode'] == 'live':
         if not config.get('safety', {}).get('live_research_enabled'):

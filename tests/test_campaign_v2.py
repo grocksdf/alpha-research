@@ -16,7 +16,8 @@ from alpharesearch.validator import Validator
 from alpharesearch.campaign_core import (create_campaign_plan, validate_campaign_plan,
                                          validate_limits, CampaignStore)
 from alpharesearch.campaign_runner import (execute_campaign, control_campaign,
-                                           import_legacy_ideas, CampaignDemoDiscovery)
+                                           import_legacy_ideas)
+from alpharesearch._demo_fixtures import CampaignDemoDiscovery
 from alpharesearch.campaign_overfit import _pearson, correlation_precheck
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -145,8 +146,15 @@ class TestCampaignV2(unittest.TestCase):
             self.assertEqual(store.cumulative("timeout-fixture"),0)
         finally:memory.close()
         control_campaign(self.config,failing,"resume","operator_acknowledged_new_request")
-        self.assertEqual(execute_campaign(self.config,failing,
-            {"max_new_simulations":1},generator=CampaignDemoDiscovery(self.config))["status"],"active")
+        # A nominal LLM campaign cannot quietly restart with fixed Demo formulas.
+        with self.assertRaises(ResearchError):
+            execute_campaign(self.config,failing,
+                {"max_new_simulations":1},generator=CampaignDemoDiscovery(self.config))
+        memory,store=self.open_store()
+        try:
+            self.assertEqual(store.get("timeout-fixture")["status"],"paused_fault")
+            self.assertEqual(store.cumulative("timeout-fixture"),0)
+        finally: memory.close()
 
     def test_no_auto_retry_on_existing_incomplete_trial(self):
         memory,store=self.open_store()
