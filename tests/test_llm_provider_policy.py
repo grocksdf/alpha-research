@@ -28,6 +28,21 @@ def reviewed_llm():
     return {
         "base_url": "https://api.openai.com/v1", "model": "reviewed-model-a",
         "timeout_seconds": 18,
+        "v08_capabilities":{"models":{"reviewed-model-a":{
+            "model":"reviewed-model-a",
+            "provider":"offline-test-openai-compatible",
+            "reviewed_by":"Local security reviewer",
+            "review_ref":"CAP-REVIEW-2026",
+            "reviewed_at":fmt(now-timedelta(hours=1)),
+            "capability_source":"Offline provider contract fixture (no live validation)",
+            "max_context_tokens":32768,
+            "max_output_tokens":8192,
+            "output_token_parameter":"max_tokens",
+            "role_output_tokens":{role:4096 for role in (
+                "explorer","strategist","worker","critic","playbook")},
+            "reasoning_parameter":"none","reasoning_value":None,
+            "tool_choice_required_supported":True,
+        }}},
         "remote_authorization": {
             "approved_base_url": "https://api.openai.com/v1",
             "approved_models": ["reviewed-model-a"],

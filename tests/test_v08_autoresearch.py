@@ -75,7 +75,8 @@ class CatalogDerivedScript:
             output={'proposals':[{'hypothesis_index':0,'expression':expression,
                 'mechanism_mapping':'Transform only the reviewed source-bound field',
                 'expected_direction':'conditional',
-                'difference_from_parent':'Reconsider mechanism based on the previous result'}]}
+                'difference_from_parent':'Reconsider mechanism based on the previous result',
+                'parent_revision_id':None}]}
         elif phase=='critic':
             output={'reviews':[{'proposal_index':0,'verdict':'approve',
                 'falsifiability':'Requires independent forward validation',
@@ -97,7 +98,7 @@ class CatalogDerivedScript:
                 'state':'provisional'}]}
         return types.SimpleNamespace(data={
             'model':model,'id':'offline-scripted-'+str(len(self.contexts)),
-            'choices':[{'message':{'tool_calls':[{'id':'offline-call-'+str(len(self.contexts)),
+            'choices':[{'finish_reason':'tool_calls','message':{'tool_calls':[{'id':'offline-call-'+str(len(self.contexts)),
             'function':{'name':'v08_'+phase,'arguments':json.dumps(output)}}]}}]})
 
 class V08Tests(unittest.TestCase):
@@ -241,8 +242,9 @@ class V08Tests(unittest.TestCase):
         self.assertFalse(audited["memory_effectiveness_causally_proven"])
 
     def test_memory_application_has_bound_decision_and_source(self):
-        responses=[execute_batch(self.config,self.plan,adapter=s)
-                   for s in (CatalogDerivedScript(),CatalogDerivedScript())]
+        scripted=CatalogDerivedScript()
+        responses=[execute_batch(self.config,self.plan,adapter=scripted)
+                   for _ in range(2)]
         self.assertTrue(responses[1]["memory_applied"])
         mem,book=self._store()
         try:

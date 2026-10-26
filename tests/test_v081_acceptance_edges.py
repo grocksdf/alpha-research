@@ -167,7 +167,22 @@ class RealRoleCostBoundaryTests(unittest.TestCase):
             "model":"test-model-v08",
             "base_url":"http://localhost:11434/v1",
             "timeout_seconds":5,
-            "extra_params":{"max_tokens":4096},
+            "v08_capabilities":{"models":{"test-model-v08":{
+                "model":"test-model-v08",
+                "provider":"offline-test-provider",
+                "reviewed_by":"Offline review engineer",
+                "review_ref":"CAP-REVIEW-TEST",
+                "reviewed_at":(datetime.now(timezone.utc)-
+                               timedelta(hours=1)).isoformat(),
+                "capability_source":"Offline test contract, no real provider",
+                "max_context_tokens":32768,
+                "max_output_tokens":8192,
+                "output_token_parameter":"max_tokens",
+                "role_output_tokens":{role:4096 for role in (
+                    "explorer","strategist","worker","critic","playbook")},
+                "reasoning_parameter":"none","reasoning_value":None,
+                "tool_choice_required_supported":True,
+            }}},
         }
         self.conf["cost"]=approved_price()
         self.plan=make_plan(self.conf,project_id="v081-price-safety",
@@ -207,7 +222,7 @@ class RealRoleCostBoundaryTests(unittest.TestCase):
         response=Response(200,{},data={
             "model":"test-model-v08","id":"provider-123",
             "usage":{"prompt_tokens":35,"completion_tokens":30},
-            "choices":[{"message":{"tool_calls":[{
+             "choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{
                 "id":"tool-123","function":{"name":"v08_explorer",
                   "arguments":json.dumps({"hypotheses":[]})}}]}}]})
         (_reply,request_id),call,n=self._ask(response=response)
@@ -229,7 +244,7 @@ class RealRoleCostBoundaryTests(unittest.TestCase):
     def test_successful_response_missing_usage_remains_unknown_not_free(self):
         response=Response(200,{},data={
             "model":"test-model-v08","id":"provider-unknown",
-            "choices":[{"message":{"tool_calls":[{
+             "choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{
                 "id":"tool-unknown","function":{"name":"v08_explorer",
                  "arguments":json.dumps({"hypotheses":[]})}}]}}]})
         with patch.dict(os.environ,{"LLM_API_KEY":"fake-offline-only"}):

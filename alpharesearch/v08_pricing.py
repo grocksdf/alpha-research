@@ -81,7 +81,8 @@ def reviewed_model_price(config, model, *, clock=None, required=True):
 
 
 def preflight_llm_budget(*, messages, tool_schema, price, config,
-                         remaining_tokens, remaining_usd):
+                         remaining_tokens, remaining_usd,
+                         phase=None, capability=None):
     """Locally reject unbudgetable prompts and bound response max_tokens.
 
     The token count for unknown provider tokenisation, overhead, hidden
@@ -97,14 +98,33 @@ def preflight_llm_budget(*, messages, tool_schema, price, config,
     llm = config["llm"]
     from .agent import build_extra_params
     extras = build_extra_params(llm)
-    configured_max = extras.get("max_tokens",2048)
+    if capability is not None:
+        if phase not in capability["role_output_tokens"]:
+            raise ResearchError("角色能力缺少审查")
+        configured_max = capability["role_output_tokens"][phase]
+        provider_cap = capability["max_output_tokens"]
+        context_cap = capability["max_context_tokens"]
+        parameter = capability["output_token_parameter"]
+    else:
+        # Legacy direct preflight tests still need a reviewed finite local cap;
+        # real LLMRoles always passes an explicit frozen capability profile.
+        configured_max = extras.get("max_tokens")
+        if type(configured_max) is not int or not 128<=configured_max<=131072:
+            raise ResearchError("真实 LLM 的逐角色输出上限必须来自冻结能力档案")
+        provider_cap = configured_max
+        context_cap = config.get("llm",{}).get("v08_reviewed_context_limit",configured_max+65536)
+        parameter = "max_tokens"
     # Role/tool schema adds prompt tokens, as do provider wrappers and
     # invisible reasoning; byte length is NOT an exact tokenizer measurement.
     payload_bytes = len(dumps({"messages":messages,"tools":tool_schema}).encode("utf-8"))
     estimated_input = payload_bytes + 1024
     if remaining_tokens <= estimated_input + 127:
         raise ResearchError("剩余 token 不足以为请求和结构化回复留出空间")
-    output_limit = min(configured_max,2048,remaining_tokens-estimated_input)
+    if type(context_cap)is not int or context_cap<=estimated_input+127:
+        raise ResearchError("输入上下文估算超出经审核的服务商上下文容量")
+    output_limit = min(configured_max,provider_cap,
+                       context_cap-estimated_input,
+                       remaining_tokens-estimated_input)
     in_rate = price["input_per_million_usd"]
     out_rate = price["output_per_million_usd"]
     # The 80% allowance retains a margin, but is NOT a guaranteed invoice cap.
@@ -120,7 +140,13 @@ def preflight_llm_budget(*, messages, tool_schema, price, config,
         raise ResearchError("剩余 token / 费用不足以完成有效结构化模型回复")
     return {
         "max_output_tokens":int(output_limit),
+        "output_token_parameter":parameter,
+        "role":phase,
+        "capability_sha256":capability.get("capability_sha256") if capability else None,
         "estimated_prompt_token_upper_proxy":int(estimated_input),
+        "input_token_count_type":"estimated_utf8_bytes_proxy_not_provider_tokens",
+        "hidden_reasoning_tokens":"unknown_until_provider_usage",
+        "provider_output_usage_is_completion_tokens_including_reported_reasoning":True,
         "estimated_prompt_usd":estimated_prompt_cost,
         "soft_usd_allowance":budget_soft_allowance,
         "priced_model":price["model"],

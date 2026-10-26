@@ -48,6 +48,13 @@ def main(argv=None):
     new.add_argument('--max-ideas-per-batch',type=int,default=4)
     new.add_argument('--max-tokens-per-batch',type=int,default=50000)
     new.add_argument('--max-known-usd-per-batch',type=float,default=None)
+    new.add_argument('--max-worker-repairs-per-candidate',type=int,default=2)
+    new.add_argument('--max-critic-defer-rounds',type=int,default=2)
+    new.add_argument('--max-empty-batches',type=int,default=2)
+    new.add_argument('--max-model-output-retries',type=int,default=1)
+    new.add_argument('--max-campaign-llm-calls',type=int,default=200)
+    new.add_argument('--max-campaign-tokens',type=int,default=500000)
+    new.add_argument('--max-campaign-known-usd',type=float,default=100.0)
     new.add_argument('--research-materials',help='Locally reviewed source/description/text/license JSON list')
     provider_check=sub.add_parser('provider-check', help='Offline LLM endpoint policy check; no network')
     provider_check.add_argument('--allow-remote-llm',action='store_true',
@@ -89,6 +96,13 @@ def main(argv=None):
                  max_ideas_per_batch=args.max_ideas_per_batch,
                  max_tokens_per_batch=args.max_tokens_per_batch,
                  max_known_usd_per_batch=args.max_known_usd_per_batch,
+                 max_worker_repairs_per_candidate=args.max_worker_repairs_per_candidate,
+                 max_critic_defer_rounds=args.max_critic_defer_rounds,
+                 max_empty_batches=args.max_empty_batches,
+                 max_model_output_retries=args.max_model_output_retries,
+                 max_campaign_llm_calls=args.max_campaign_llm_calls,
+                 max_campaign_tokens=args.max_campaign_tokens,
+                 max_campaign_known_usd=args.max_campaign_known_usd,
                  research_materials=materials)
             _new_file(args.output,data)
             print(json.dumps({'plan':args.output,'plan_sha256':data['plan_sha256'],

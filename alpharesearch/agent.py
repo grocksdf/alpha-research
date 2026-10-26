@@ -41,7 +41,7 @@ TOOLS += [
 
 # 可经 [llm.extra_params] 透传给供应商的请求参数白名单；未列出的字段一律拒绝，
 # 防止配置夹带未审查参数（如覆盖工具面或注入指令）。
-EXTRA_PARAM_KEYS = ("thinking", "reasoning_effort", "temperature", "top_p", "max_tokens")
+EXTRA_PARAM_KEYS = ("thinking", "reasoning_effort", "temperature", "top_p", "max_tokens", "max_completion_tokens")
 
 
 def build_extra_params(settings):
@@ -61,9 +61,12 @@ def build_extra_params(settings):
         value = extra.get(key)
         if key in extra and (isinstance(value, bool) or not isinstance(value, (int, float))):
             raise ResearchError("llm.extra_params." + key + " 必须为数字")
-    tokens = extra.get("max_tokens")
-    if "max_tokens" in extra and (isinstance(tokens, bool) or not isinstance(tokens, int) or tokens <= 0):
-        raise ResearchError("llm.extra_params.max_tokens 必须为正整数")
+    for limit_key in ("max_tokens","max_completion_tokens"):
+        tokens = extra.get(limit_key)
+        if limit_key in extra and (type(tokens) is not int or not 1<=tokens<=131072):
+            raise ResearchError("llm.extra_params."+limit_key+" 必须为合理正整数")
+    if "max_tokens" in extra and "max_completion_tokens" in extra:
+        raise ResearchError("不能同时指定两种不同的供应商输出 token 上限")
     return dict(extra)
 
 
@@ -157,11 +160,20 @@ class ResearchAgent:
         input_tokens=usage.get('prompt_tokens');output_tokens=usage.get('completion_tokens')
         input_tokens=input_tokens if type(input_tokens)is int and input_tokens>=0 else None
         output_tokens=output_tokens if type(output_tokens)is int and output_tokens>=0 else None
+        details=usage.get("completion_tokens_details")
+        details=details if isinstance(details,dict) else {}
+        reasoning_tokens=details.get("reasoning_tokens")
+        reasoning_tokens=(reasoning_tokens if type(reasoning_tokens)is int and
+                          reasoning_tokens>=0 else None)
         pricing=engine.config.get('cost',{});usd=None
         if input_tokens is not None and output_tokens is not None and all(type(pricing.get(k)) in (int,float) and pricing[k]>=0 for k in ('input_per_million_usd','output_per_million_usd')):
             usd=(input_tokens*pricing['input_per_million_usd']+output_tokens*pricing['output_per_million_usd'])/1e6
         detail={'model':self.model,'http_status':response.status,
-                'vendor_usage':'reported' if input_tokens is not None and output_tokens is not None else 'unknown'}
+                'vendor_usage':'reported' if input_tokens is not None and output_tokens is not None else 'unknown',
+                'reasoning_tokens_reported':reasoning_tokens,
+                'reasoning_tokens_unreported':reasoning_tokens is None,
+                'completion_tokens_include_reasoning_when_provider_reports_it':True,
+                'prompt_token_estimate_not_provider_measurement':True}
         receipt=engine.config.get("_v08_pricing_receipt")
         if isinstance(receipt,dict) and receipt.get("model")==self.model:
             detail.update({

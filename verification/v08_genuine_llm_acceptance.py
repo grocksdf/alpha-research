@@ -54,8 +54,15 @@ def audit_real_rounds(dbpath, project_id, responses, *, min_rounds=3):
                 "p.original_raw_sha256,p.response_id,p.tool_call_id,p.body_json "
                 "FROM v08_requests r LEFT JOIN v08_role_payloads p ON p.request_id=r.id "
                 "WHERE r.run_id=? ORDER BY r.created,r.id",(b["run_id"],))]
-            if {r["role"] for r in rows} != set(PHASES) or len(rows) != len(PHASES):
-                reasons.append("missing_role_"+str(b["batch_number"]))
+            counts={role:sum(r["role"]==role for r in rows) for role in PHASES}
+            if (counts["explorer"]!=1 or counts["strategist"]!=1 or
+                    counts["worker"]<1 or counts["critic"]<1 or
+                    counts["playbook"]>1):
+                reasons.append("missing_or_duplicate_core_role_"+str(b["batch_number"]))
+            # An empty/deferred batch may have no Playbook request; genuine
+            # evidence is checked for successful research across rounds.
+            if counts["playbook"]==0:
+                reasons.append("batch_without_playbook_"+str(b["batch_number"]))
             for row in rows:
                 if (row["state"] != "completed" or not row["response_id"]
                         or not row["tool_call_id"] or not row["original_raw_sha256"]
@@ -69,7 +76,7 @@ def audit_real_rounds(dbpath, project_id, responses, *, min_rounds=3):
             provenance=[json.loads(r[0]) for r in memory.db.execute(
                 "SELECT payload FROM events WHERE run_id=? AND kind='v08_role_provenance'",
                 (b["run_id"],))]
-            if len(provenance) != len(PHASES) or any(
+            if len(provenance) != len(rows) or any(
                     r.get("source") != "authenticated_llm_tool_call" for r in provenance):
                 reasons.append("scripted_or_unattributed_model_roles_"+str(b["batch_number"]))
             policies=[json.loads(r[0]) for r in memory.db.execute(
@@ -89,8 +96,8 @@ def audit_real_rounds(dbpath, project_id, responses, *, min_rounds=3):
             budget_events=[json.loads(r[0]) for r in memory.db.execute(
                 "SELECT payload FROM events WHERE run_id=? AND kind='v08_llm_budget_observed'",
                 (b["run_id"],))]
-            if (len(preflights)!=len(PHASES) or len(charges)!=len(PHASES)
-                    or len(budget_events)!=len(PHASES)):
+            if (len(preflights)!=len(rows) or len(charges)!=len(rows)
+                    or len(budget_events)!=len(rows)):
                 reasons.append("missing_reviewed_pricing_or_usage_audit_"+str(b["batch_number"]))
             else:
                 pricing_valid=True
@@ -237,6 +244,10 @@ def main(argv=None):
     parser.add_argument("--objective",required=True)
     parser.add_argument("--batches",type=int,default=3)
     parser.add_argument("--max-simulations-per-batch",type=int,default=2)
+    parser.add_argument("--max-llm-calls-per-batch",type=int,default=8)
+    parser.add_argument("--max-worker-repairs-per-candidate",type=int,default=2)
+    parser.add_argument("--max-critic-defer-rounds",type=int,default=2)
+    parser.add_argument("--max-empty-batches",type=int,default=2)
     parser.add_argument("--max-tokens-per-batch",type=int,default=40000)
     parser.add_argument("--max-known-usd-per-batch",type=float,required=True)
     parser.add_argument("--max-wall-seconds",type=int,default=900)
@@ -267,7 +278,11 @@ def main(argv=None):
         config["_v08_remote_operator_confirmed"]=bool(args.allow_remote_llm)
         plan=make_plan(config,project_id=args.project_id,objective=args.objective,
             max_simulations_per_batch=args.max_simulations_per_batch,
-            max_llm_calls_per_batch=6,max_wall_seconds=args.max_wall_seconds,
+            max_llm_calls_per_batch=args.max_llm_calls_per_batch,
+            max_worker_repairs_per_candidate=args.max_worker_repairs_per_candidate,
+            max_critic_defer_rounds=args.max_critic_defer_rounds,
+            max_empty_batches=args.max_empty_batches,
+            max_wall_seconds=args.max_wall_seconds,
             max_tokens_per_batch=args.max_tokens_per_batch,
             max_known_usd_per_batch=args.max_known_usd_per_batch)
         outcomes=[]
