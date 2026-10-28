@@ -15,13 +15,13 @@ import time
 from pathlib import Path
 
 from .common import ResearchError, load_settings
-from .autoresearch_v08 import make_plan, execute_batch, control, Playbook
+from .autoresearch_v08 import PROTOCOL, make_plan, execute_batch, control, Playbook
 from .memory import Memory
 
 
 def _read_plan(file):
     data=json.loads(Path(file).read_text(encoding='utf-8'))
-    if not isinstance(data,dict) or data.get('protocol')!='llm-autoresearch-v08':
+    if not isinstance(data,dict) or data.get('protocol')!=PROTOCOL:
         raise ResearchError('未提供 v0.8 冻结计划')
     return data
 

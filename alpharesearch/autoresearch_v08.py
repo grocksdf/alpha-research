@@ -30,7 +30,7 @@ from .v082_protocol import (parse_tool_response, safe_model_diagnostic,
                             ModelToolCallInvalid)
 from .v082_formula import validate_formula, formula_feedback
 
-PROTOCOL = "llm-autoresearch-v08"
+PROTOCOL = "llm-autoresearch-v083"
 PHASES = ("explorer", "strategist", "worker", "critic", "playbook")
 # Safety enums are actions / evidence grades, NOT economic families.
 STRATEGIES = {"test", "revise", "seek_evidence", "abandon"}
@@ -291,6 +291,22 @@ class Playbook:
             id TEXT PRIMARY KEY,project_id TEXT NOT NULL,topic TEXT NOT NULL,
             body TEXT NOT NULL,evidence_ids TEXT NOT NULL,evidence_grade TEXT NOT NULL,
             status TEXT NOT NULL,supersedes_id TEXT,created TEXT NOT NULL);
+        -- One immutable verdict per archived Playbook proposal. Each accepted
+        -- verdict, its knowledge row, and hash-chain event commit atomically.
+        CREATE TABLE IF NOT EXISTS v08_knowledge_reviews(
+            request_id TEXT NOT NULL REFERENCES v08_role_payloads(request_id),
+            proposal_index INTEGER NOT NULL,
+            project_id TEXT NOT NULL,run_id TEXT NOT NULL,
+            item_sha256 TEXT NOT NULL,
+            decision TEXT NOT NULL CHECK(decision IN ('accepted','rejected')),
+            knowledge_id TEXT,reason TEXT NOT NULL,created TEXT NOT NULL,
+            PRIMARY KEY(request_id,proposal_index));
+        CREATE TRIGGER IF NOT EXISTS v08_knowledge_review_immutable
+            BEFORE UPDATE ON v08_knowledge_reviews
+            BEGIN SELECT RAISE(ABORT,'immutable knowledge review'); END;
+        CREATE TRIGGER IF NOT EXISTS v08_knowledge_review_no_delete
+            BEFORE DELETE ON v08_knowledge_reviews
+            BEGIN SELECT RAISE(ABORT,'immutable knowledge review'); END;
         CREATE TRIGGER IF NOT EXISTS v08_payload_immutable BEFORE UPDATE ON v08_role_payloads
           BEGIN SELECT RAISE(ABORT,'immutable redacted LLM payload'); END;
         CREATE TRIGGER IF NOT EXISTS v08_payload_delete BEFORE DELETE ON v08_role_payloads
@@ -581,6 +597,9 @@ class Playbook:
             safe.append({"id":row["id"],"topic":row["topic"],"claim":body["claim"],
                          "uncertainty":body["uncertainty"],
                          "evidence_grade":row["evidence_grade"],
+                         "knowledge_kind":("synthetic_process_observation" if
+                            row["evidence_grade"]=="synthetic_process" else
+                            "in_sample_research_observation"),
                          "market_alpha_validated":False,
                          "supporting_evidence_ids":support,
                          "revision_evidence_sha256":digest({
@@ -667,6 +686,162 @@ class Playbook:
                            "evidence_grade":"synthetic_process" if (t or {}).get("synthetic") else
                                ("research_is" if t and (t or {}).get("mode")=="live" else "unverified")})
         return values
+
+    def completed_evidence(self, project_id, limit=200):
+        """Evidence whitelist built from *persisted*, completed trial facts.
+
+        Queued/paused/unknown/deferred records never acquire an evidence grade
+        just because a model or Critic called them promising. A synthetic
+        trial can support process observations only, never market validation.
+        """
+        vetted=[]
+        for item in self.evidence(project_id,limit=limit):
+            if item['state']!='evaluated' or item['evidence_grade']=='unverified':
+                continue
+            row=self.db.execute(
+                'SELECT q.trial_id,q.fingerprint,q.expression FROM v08_queue q '
+                'WHERE q.project_id=? AND q.id=?',
+                (project_id,item['evidence_id'])).fetchone()
+            if not row or not row['trial_id']:
+                continue
+            try:
+                trial=self.memory.trial(row['trial_id'])
+                result=self.memory.latest(row['trial_id'])
+            except (ResearchError,ValueError,TypeError):
+                continue
+            if (trial['state']!='completed' or not isinstance(result,dict) or
+                    trial['fingerprint']!=row['fingerprint'] or
+                    trial['expression']!=row['expression'] or
+                    not isinstance(result.get('metrics'),dict)):
+                continue
+            # The evidence grade is computed by the host; no free-text model
+            # claim can change the scope of a result.
+            if result.get('synthetic') is True and result.get('mode')=='demo':
+                grade='synthetic_process'
+            elif (result.get('synthetic') is False and result.get('mode')=='live'
+                    and trial['remote_state']=='completed'):
+                grade='research_is'
+            else:
+                continue
+            vetted.append({**item,'evidence_grade':grade,
+                           'trial_id':row['trial_id'],
+                           'market_alpha_validated':False})
+        return vetted
+
+    def _verified_playbook_source(self,project_id,run_id,request_id,proposals):
+        source=self.db.execute(
+            'SELECT r.state,r.role,r.project_id,r.run_id,r.reply_sha256,'
+            'p.body_json,p.canonical_body_sha256,p.response_id,p.tool_call_id '
+            'FROM v08_requests r JOIN v08_role_payloads p ON r.id=p.request_id '
+            'WHERE r.id=?',(request_id,)).fetchone()
+        if (not source or (source['state'],source['role'],source['project_id'],source['run_id'])!=
+                ('completed','playbook',project_id,run_id) or
+                not source['response_id'] or not source['tool_call_id'] or
+                source['canonical_body_sha256']!=source['reply_sha256']):
+            raise ResearchError('Playbook 知识提案缺少已完成的原始 LLM 来源凭证')
+        try:
+            body=json.loads(source['body_json'])
+        except (TypeError,ValueError) as exc:
+            raise ResearchError('Playbook 来源结构化载荷无法读取') from exc
+        if (digest(body)!=source['reply_sha256'] or
+                not isinstance(body,dict) or body.get('knowledge')!=proposals):
+            raise ResearchError('Playbook 知识提案与原始不可变来源不一致')
+        return True
+
+    def review_knowledge(self,project_id,run_id,request_id,proposals):
+        """Independently review each source-bound proposal; resume is idempotent.
+
+        ResearchError from an individual *knowledge proposal* is a rejected
+        review, not an excuse to lose sibling knowledge or prior simulations.
+        Database/write failures still stop the batch (fail closed).
+        """
+        self._verified_playbook_source(project_id,run_id,request_id,proposals)
+        eligible={e['evidence_id']:e for e in self.completed_evidence(project_id)}
+        created=[]; rejected=[]
+        for index,item in enumerate(proposals):
+            item_sha=digest(item)
+            old=self.db.execute(
+                'SELECT * FROM v08_knowledge_reviews WHERE request_id=? AND proposal_index=?',
+                (request_id,index)).fetchone()
+            if old:
+                if (old['item_sha256']!=item_sha or old['project_id']!=project_id or
+                        old['run_id']!=run_id):
+                    raise ResearchError('知识审核回执与冻结模型提案不一致')
+                if old['decision']=='accepted':
+                    row=self.db.execute('SELECT id FROM v08_knowledge WHERE id=? AND project_id=?',
+                                        (old['knowledge_id'],project_id)).fetchone()
+                    if not row:
+                        raise ResearchError('已接受的知识回执缺少不可变知识事实')
+                    created.append(row[0])
+                else:
+                    rejected.append({'item_index':index,'reason':old['reason']})
+                continue
+            try:
+                if not isinstance(item,dict):
+                    raise ResearchError('知识提案不是结构化对象')
+                refs=item['supporting_evidence_ids']+item['contradicting_evidence_ids']
+                if (not item['supporting_evidence_ids'] or not refs or
+                        len(refs)!=len(set(refs)) or any(x not in eligible for x in refs)):
+                    raise ResearchError('知识引用包含未完成、排队或未经核实的实验')
+                if any(eligible[x]['evidence_grade']=='unverified' for x in refs):
+                    raise ResearchError('未经核实的试验不能生成有证据知识')
+                if all(eligible[x]['evidence_grade']=='synthetic_process' for x in refs):
+                    # Source grades are authoritative even if a proposal
+                    # claims otherwise. Do not promote synthetic studies.
+                    if item.get('state')=='verified_market' or item.get('evidence_grade')=='verified_market':
+                        raise ResearchError('合成结果不得宣称真实市场有效性')
+                ids=self.learn(project_id,run_id,[item],review_receipt={
+                    'request_id':request_id,'proposal_index':index,
+                    'item_sha256':item_sha})
+                created.extend(ids)
+            except ResearchError as exc:
+                reason=str(exc)[:300]
+                def reject():
+                    self.db.execute(
+                        'INSERT INTO v08_knowledge_reviews VALUES(?,?,?,?,?,?,?,?,?)',
+                        (request_id,index,project_id,run_id,item_sha,'rejected',None,reason,now()))
+                    self.event(run_id,'playbook_proposal_reviewed',{
+                        'project_id':project_id,'request_id':request_id,
+                        'proposal_index':index,'proposal_sha256':item_sha,
+                        'decision':'rejected','reason':reason,
+                        'knowledge_id':None})
+                self.memory.transaction(reject)
+                rejected.append({'item_index':index,'reason':reason})
+        return {'accepted':created,'rejected':rejected,
+                'source_request_id':request_id,
+                'eligible_evidence_ids':sorted(eligible)}
+
+    def reconcile_previous_playbook(self,project_id,run_id):
+        """After explicit project resume, reconcile archived failed batches.
+
+        Never repeat a model call or a Simulation. A committed knowledge row
+        always has its matching immutable review in the SAME transaction;
+        an absent receipt means that specific local write was rolled back.
+        """
+        repaired=[]
+        rows=self.db.execute(
+            'SELECT r.id,r.run_id,p.body_json FROM v08_requests r '
+            'JOIN v08_role_payloads p ON p.request_id=r.id '
+            'JOIN v08_batches b ON b.run_id=r.run_id AND b.project_id=r.project_id '
+            "WHERE r.project_id=? AND r.role='playbook' AND r.state='completed' "
+            "AND b.status='failed' ORDER BY b.batch_number,r.created,r.id",
+            (project_id,)).fetchall()
+        for source in rows:
+            proposals=json.loads(source['body_json'])['knowledge']
+            remaining=self.db.execute(
+                'SELECT COUNT(*) FROM v08_knowledge_reviews WHERE request_id=?',
+                (source['id'],)).fetchone()[0]
+            if remaining==len(proposals):
+                continue
+            review=self.review_knowledge(project_id,source['run_id'],source['id'],proposals)
+            self.memory.transaction(lambda:self.event(run_id,'playbook_reconciled',{
+                'project_id':project_id,'source_run_id':source['run_id'],
+                'source_request_id':source['id'],
+                'reviewed_count':len(proposals),'newly_or_previously_accepted':review['accepted'],
+                'rejected':review['rejected'],
+                'no_new_llm_or_simulation':True}))
+            repaired.append(review)
+        return repaired
 
     def hypothesis(self,project_id,run_id,body,request_id,parent_id=None):
         ident=uuid.uuid4().hex
@@ -794,7 +969,7 @@ class Playbook:
                 "trial_id":trial_id or row["trial_id"],"reason":reason})
         self.memory.transaction(write)
 
-    def learn(self,project_id,run_id,proposals):
+    def learn(self,project_id,run_id,proposals,*,review_receipt=None):
         known={v["evidence_id"]:v for v in self.evidence(project_id,limit=200)}
         created=[]
         for item in proposals:
@@ -804,7 +979,10 @@ class Playbook:
             if not item["supporting_evidence_ids"]:
                 raise ResearchError("知识必须至少包含一项证据；矛盾知识也需记录证据")
             grades={known[x]["evidence_grade"] for x in citations}
-            if "unverified" in grades:
+            if "unverified" in grades or any(known[x]['state']!='evaluated' for x in citations):
+                raise ResearchError("未经核实的试验不能生成有证据知识")
+            completed={v['evidence_id'] for v in self.completed_evidence(project_id)}
+            if any(x not in completed for x in citations):
                 raise ResearchError("未经核实的试验不能生成有证据知识")
             grade="synthetic_process" if "synthetic_process" in grades else "research_is"
             state=item["state"]
@@ -818,7 +996,21 @@ class Playbook:
                     (entry,project_id,item["topic"],dumps(item),dumps(citations),grade,state,prev[0] if prev else None,now()))
                 self.event(run_id,"playbook_revision",{"id":entry,"topic":item["topic"],
                     "evidence_ids":citations,"grade":grade,"state":state,
-                    "supersedes_id":prev[0] if prev else None,"revision_sha256":digest(item)})
+                    "supersedes_id":prev[0] if prev else None,"revision_sha256":digest(item),
+                    "knowledge_kind":("synthetic_process_observation" if grade=="synthetic_process"
+                                      else "in_sample_research_observation"),
+                    "market_alpha_validated":False})
+                if review_receipt is not None:
+                    receipt=review_receipt
+                    self.db.execute('INSERT INTO v08_knowledge_reviews VALUES(?,?,?,?,?,?,?,?,?)',
+                        (receipt['request_id'],receipt['proposal_index'],project_id,run_id,
+                         receipt['item_sha256'],'accepted',entry,'validated',now()))
+                    self.event(run_id,'playbook_proposal_reviewed',{
+                        'project_id':project_id,'request_id':receipt['request_id'],
+                        'proposal_index':receipt['proposal_index'],
+                        'proposal_sha256':receipt['item_sha256'],
+                        'decision':'accepted','reason':'validated',
+                        'knowledge_id':entry})
             self.memory.transaction(write)
             created.append(entry)
         return created
@@ -883,6 +1075,38 @@ class Playbook:
             "SELECT id,state FROM v08_revisions WHERE project_id=?",(project_id,))}
         if actual_states!=revision_states:
             raise ResearchError("持久 Critic 修订队列状态与不可覆盖审计事件不一致")
+        # Knowledge review receipts must be backed by the exact archived
+        # Playbook reply and by the immutable accepted knowledge row.
+        for receipt in self.db.execute(
+                'SELECT * FROM v08_knowledge_reviews WHERE project_id=?',
+                (project_id,)):
+            source=self.db.execute(
+                'SELECT r.role,r.state,r.project_id,p.body_json '
+                'FROM v08_requests r JOIN v08_role_payloads p ON p.request_id=r.id '
+                'WHERE r.id=?',(receipt['request_id'],)).fetchone()
+            if (not source or source['role']!='playbook' or
+                    source['state']!='completed' or source['project_id']!=project_id):
+                raise ResearchError('Playbook 审核缺少完整模型来源')
+            body=json.loads(source['body_json'])['knowledge']
+            index=receipt['proposal_index']
+            if not (0<=index<len(body)) or digest(body[index])!=receipt['item_sha256']:
+                raise ResearchError('Playbook 审核项目与原始提案不一致')
+            decisions=[json.loads(e[0]) for e in self.db.execute(
+                "SELECT payload FROM events WHERE kind='v08_playbook_proposal_reviewed'")
+                if json.loads(e[0]).get('request_id')==receipt['request_id'] and
+                   json.loads(e[0]).get('proposal_index')==index]
+            if (len(decisions)!=1 or decisions[0].get('proposal_sha256')!=receipt['item_sha256']
+                    or decisions[0].get('decision')!=receipt['decision']
+                    or decisions[0].get('knowledge_id')!=receipt['knowledge_id']):
+                raise ResearchError('Playbook 逐条审核缺少唯一哈希链回执')
+            if receipt['decision']=='accepted':
+                accepted=self.db.execute(
+                    'SELECT body FROM v08_knowledge WHERE id=? AND project_id=?',
+                    (receipt['knowledge_id'],project_id)).fetchone()
+                if not accepted or digest(json.loads(accepted[0]))!=receipt['item_sha256']:
+                    raise ResearchError('Playbook 已固化知识与原提案不一致')
+            elif receipt['knowledge_id'] is not None:
+                raise ResearchError('被拒绝的 Playbook 提案不应产生知识')
         for revision in self.db.execute(
                 "SELECT * FROM v08_revisions WHERE project_id=?",(project_id,)):
             for rid,stage in ((revision["worker_request_id"],"worker"),
@@ -1316,6 +1540,18 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
                 legacy={'runs','autonomous_studies','campaign_projects','submissions'}
                 if (names & legacy) and 'v08_projects' not in names:
                     raise ResearchError('旧研究数据库不得就地升级为 v0.8；需要独立新库')
+                if 'v08_projects' in names:
+                    # Read-only compatibility check BEFORE Engine / Playbook
+                    # writes a schema migration or new run to this database.
+                    frozen_rows=inspection.execute(
+                        'SELECT project_id,plan_sha256,plan_json FROM v08_projects').fetchall()
+                    for old_project,sha,payload in frozen_rows:
+                        old_plan=json.loads(payload)
+                        if old_plan.get('protocol')!=PROTOCOL:
+                            raise ResearchError('旧版本冻结研究项目禁止原地迁移到 v0.8.3')
+                        if old_project==plan['project_id'] and (
+                                sha!=plan['plan_sha256'] or old_plan!=plan):
+                            raise ResearchError('冻结项目计划不一致；不得修改旧数据库')
         except sqlite3.DatabaseError as error:
             raise ResearchError('无法只读检查 v0.8 独立数据库') from error
     # Existing worker lock protects selection -> claim across processes.
@@ -1331,6 +1567,10 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
             batch_id,batch_number=store.start_batch(plan["project_id"],engine.run_id)
             started=time.monotonic()
             try:
+                # Resume source-bound local knowledge from an explicitly
+                # resumed failed batch. Never replay a model or Simulation.
+                reconciled_knowledge=store.reconcile_previous_playbook(
+                    plan['project_id'],engine.run_id)
                 # Only tests may inject a scripted model and it will be tagged.
                 # Old queued candidates get a fair chance before LLM requests.
                 prior_trials=_dispatch_queued(engine,store,plan,
@@ -1496,19 +1736,37 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
                             previous_zero+1>=plan["resources"]["max_empty_batches"]):
                         raise ResearchError(
                             "安全暂停：本批无合法审核候选，且修订资源/空批次保护耗尽")
-                batch_evidence=store.evidence(plan["project_id"])
-                # Distillation may run only when actual evidence exists. No raw
-                # BRAIN responses or independent holdout enter model context.
+                batch_evidence=store.completed_evidence(plan["project_id"])
+                # Playbook may ONLY see a host-built whitelist of completed
+                # persisted trials. The full research queue is not evidence.
                 new_knowledge=[]
-                if batch_evidence and any(e["state"]=="evaluated" for e in batch_evidence):
+                rejected_knowledge=[]
+                if batch_evidence:
+                    store.memory.transaction(lambda:store.event(
+                        engine.run_id,'playbook_evidence_whitelist',{
+                            'project_id':plan['project_id'],
+                            'eligible_evidence_ids':[e['evidence_id'] for e in batch_evidence],
+                            'evidence_sha256':digest(batch_evidence),
+                            'queued_excluded':store.db.execute(
+                                "SELECT COUNT(*) FROM v08_queue WHERE project_id=? AND state='queued'",
+                                (plan['project_id'],)).fetchone()[0],
+                            'market_alpha_validated':False}))
                     learned,learning_request=roles.ask("playbook",{**common,
                         "new_experiment_evidence":batch_evidence,
-                        "allowed_evidence_ids":[e["evidence_id"] for e in batch_evidence]},start_time=started)
-                    new_knowledge=store.learn(plan["project_id"],engine.run_id,learned["knowledge"])
+                        "allowed_evidence_ids":[e["evidence_id"] for e in batch_evidence],
+                        "evidence_scope_instruction":"Only report synthetic process observations "
+                        "for synthetic evidence; no true market-alpha validity claim."},
+                        start_time=started)
+                    review=store.review_knowledge(plan["project_id"],engine.run_id,
+                        learning_request,learned["knowledge"])
+                    new_knowledge=review['accepted']
+                    rejected_knowledge=review['rejected']
                 store.memory.transaction(lambda:store.event(engine.run_id,"batch_completed",{
                     "project_id":plan["project_id"],"batch_id":batch_id,
                     "new_candidates":len(accepted),"base_simulations":sim_count,
                     "knowledge_revisions":new_knowledge,
+                    "knowledge_rejected":rejected_knowledge,
+                    "reconciled_knowledge_requests":[r['source_request_id'] for r in reconciled_knowledge],
                     "invalid_formula_attempts":len(invalid_attempts),
                     "critic_rejections":len(rejected),
                     "critic_deferrals":len(deferred),
@@ -1520,6 +1778,8 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
                 return {"status":"active","batch_id":batch_id,
                     "new_candidates":len(accepted),"new_trials":sim_count,
                     "knowledge_revisions":new_knowledge,
+                    "knowledge_rejected":rejected_knowledge,
+                    "reconciled_knowledge_requests":[r['source_request_id'] for r in reconciled_knowledge],
                     "invalid_formula_attempts":len(invalid_attempts),
                     "critic_rejections":len(rejected),
                     "critic_deferrals":len(deferred),
@@ -1545,6 +1805,14 @@ def execute_batch(config, plan, *, adapter=None, simulator=None):
 def control(config,plan,action,reason="operator"):
     if plan.get("protocol")!=PROTOCOL:
         raise ResearchError("v0.8 计划协议不匹配")
+    # Control must not alter the lifecycle of another (or historical) plan.
+    dbfile=Path(config['database'])
+    if dbfile.exists():
+        with closing(sqlite3.connect(dbfile.as_uri()+'?mode=ro',uri=True)) as db:
+            old=db.execute('SELECT plan_sha256,plan_json FROM v08_projects WHERE project_id=?',
+                           (plan['project_id'],)).fetchone()
+            if not old or old[0]!=plan['plan_sha256'] or json.loads(old[1])!=plan:
+                raise ResearchError('控制操作拒绝篡改其他冻结项目')
     from .cli import worker_lock
     with worker_lock(config["database"]):
         mem=Memory(config["database"])

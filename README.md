@@ -443,3 +443,18 @@ See `docs/v08-hardcoded-audit.md`, `docs/v08-architecture-playbook.md`,
 `docs/v08-experiments-ab.md`, `docs/v08-next-brain-validation.md`, and
 `docs/v08-compatibility.md`. Complete offline safety regression:
 `python verification/v08_module_matrix.py --repo . --report-dir /tmp/v08-check`.
+
+## v0.8.3 Playbook evidence consistency (offline safety update)
+
+A queued Alpha proposal is **not** simulation evidence. Playbook now receives
+only completed, persisted trial evidence, and source-bound knowledge proposals
+are reviewed independently. Rejection of an invalid proposal does not erase
+accepted sibling evidence or previously completed Demo simulations. Immutable
+per-item review receipts enable safe reconciliation after an operator-controlled
+fault recovery without resending any model request or Simulation.
+
+**Compatibility:** v0.8.3 uses the `llm-autoresearch-v083` frozen plan protocol;
+create a new dedicated database. Historical v0.8.2 plans remain immutable and
+cannot be silently upgraded. Demo remains the only enabled autonomous research
+execution path; Live BRAIN and Submit are not authorized by this release.
+See `docs/v083-playbook-P0-fix.md` for the audit and test scope.
