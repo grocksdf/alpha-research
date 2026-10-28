@@ -14,3 +14,4 @@ config/autoresearch.toml
 # Private, per-operator v0.8 model approval configurations
 config/v08-*.local.toml
 config/v082-approved-local.toml
+config/v083-*.local.toml

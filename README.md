@@ -1,6 +1,22 @@
-# AlphaResearch V0.6.1
+# AlphaResearch V0.8.3.post1
 
 **AI Alpha Research Agent：自主研究 · 生成假设 · 发现新因子。**
+
+当前基线为 v0.8.3 P1 语义与结构加固（`0.8.3.post1`，协议 `llm-autoresearch-v083-p1`）。
+Playbook 知识体由宿主代码从已核实试验事实确定性投影，模型自由文本（topic/claim/
+interpretation）只作为 source-bound 不可变角色载荷存档、不进入受信任知识；
+每条知识提案独立 schema 校验与来源裁决，截断/畸形/越级响应 fail-closed 拒绝。
+Live BRAIN、Submit 与真实研究开关保持关闭，Demo 是唯一启用的自主研究执行路径。
+
+**490 项离线测试通过；发布源码清单 166 项校验通过；真实 LLM 调用、真实 BRAIN 模拟与提交均为 0。**
+新增 16 项 v0.8.3 P1 语义专项测试（对抗性市场断言不入库、伪造回执拦截、截断/畸形 JSON
+失败关闭、非数值指标污染拦截等）。
+
+[完整验收与升级说明](docs/STATUS.md) · [v0.8.3 P1 加固说明](docs/v083-p1-knowledge-hardening.md)。
+
+以下为历史版本说明（v0.6.1 及更早），按时间倒序保留；发生冲突时以当前 0.8.3.post1 代码为准。
+
+## v0.6.1 说明（历史）
 
 本版修复 v0.6.0 的收益契约门禁回归：统一 `require_result_return_contract()`，
 评价、稳定性统计与最终 Submit 分别直接执行完整验证。来源 GET/API/Alpha、币种、本金、
