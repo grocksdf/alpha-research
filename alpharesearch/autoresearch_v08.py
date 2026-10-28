@@ -1343,7 +1343,9 @@ class LLMRoles:
                 "to the worker's `expression` field in a later step."
             ),
             "strategist": (
-                " As strategist, every memory id you cite in a decision's "
+                " As strategist, every decision MUST fill its `memory_effect` with a "
+                "non-empty string (state explicitly \"no memory applied\" when no "
+                "memory is used). Every memory id you cite in a decision's "
                 "`memory_ids_used` MUST have a matching entry in that same "
                 "decision's `memory_application` array (one `memory_application` "
                 "object per cited id, with the same `memory_id`); if you cite no "
