@@ -508,3 +508,9 @@ For reproducible offline tests run `python verification/v08_module_matrix.py
 --repo . --report-dir /tmp/alpha-p1-offline`. Genuine three-round research is
 **not covered** by scripted evidence and requires separate model-price approval
 and an authorized API key before `verification/v08_genuine_llm_acceptance.py`.
+
+
+### v0.8.3.post2 semantic-contract safety update
+
+See [research-role semantic contracts and privacy boundary](docs/v083-semantic-contract-and-privacy.md).
+This offline-only release derives role guidance from the actual tool schema and executable cross-field contract rules, and distinguishes true credential indicators from citable scholarly URLs. No fixed Alpha formulas or families were added. Historical frozen projects require their original code identity; new tests use a new plan and Demo-only database.

@@ -15,3 +15,10 @@ config/autoresearch.toml
 config/v08-*.local.toml
 config/v082-approved-local.toml
 config/v083-*.local.toml
+# NOTE: the patterns above use `.local.toml` and therefore do NOT match the
+# `-local.toml` naming used below. Keep both forms until filenames converge.
+config/*-local.toml
+config/v083-post1-approved-local.toml
+
+# Generated offline QA artifacts (verification/v083_contract_offline_suite.py)
+offline-qa/
