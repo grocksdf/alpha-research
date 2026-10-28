@@ -146,7 +146,8 @@ class PlaybookP0Tests(unittest.TestCase):
         self.run_script()
         mem,book=self.store()
         queued=mem.db.execute("SELECT id FROM v08_queue WHERE state='queued'").fetchone()[0]
-        prototype=json.loads(mem.db.execute("SELECT body FROM v08_knowledge LIMIT 1").fetchone()[0])
+        source=mem.db.execute("SELECT body_json FROM v08_role_payloads WHERE role='playbook' LIMIT 1").fetchone()
+        prototype=json.loads(source[0])['knowledge'][1]
         prototype['supporting_evidence_ids']=[queued]
         with self.assertRaisesRegex(ResearchError,'未经核实'):
             book.learn('test-v083',None,[prototype])

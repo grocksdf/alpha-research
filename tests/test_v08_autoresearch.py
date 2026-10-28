@@ -288,13 +288,32 @@ class V08Tests(unittest.TestCase):
         first=execute_batch(self.config,self.plan,adapter=CatalogDerivedScript())
         self.assertTrue(first["knowledge_revisions"])
         old_id=first["knowledge_revisions"][0]
+        # A knowledge revision must be attributed to a *second archived model*
+        # response. Direct book.learn() injection is now source-forbidden.
         mem,book=self._store()
         try:
-            row=mem.db.execute("SELECT topic,body FROM v08_knowledge WHERE id=?",
-                               (old_id,)).fetchone()
-            previous=json.loads(row["body"])
-            stale=dict(previous,state="stale",contradicting_evidence_ids=[])
-            book.learn("novel-v08",None,[stale])
+            raw=mem.db.execute(
+                "SELECT body_json FROM v08_role_payloads WHERE role='playbook' ORDER BY created LIMIT 1"
+            ).fetchone()[0]
+            previous_topic=json.loads(raw)['knowledge'][0]['topic']
+        finally:mem.close()
+        class StaleNext(CatalogDerivedScript):
+            def __init__(self):
+                super().__init__()
+                self.field_counter=1  # avoid exact prior formula reuse
+            def complete(self,phase,messages,schema,model):
+                result=super().complete(phase,messages,schema,model)
+                if phase=='playbook':
+                    fn=result.data['choices'][0]['message']['tool_calls'][0]['function']
+                    value=json.loads(fn['arguments'])
+                    value['knowledge'][0]['topic']=previous_topic
+                    value['knowledge'][0]['state']='stale'
+                    fn['arguments']=json.dumps(value)
+                return result
+        execute_batch(self.config,self.plan,adapter=StaleNext())
+        mem,book=self._store()
+        try:
+            self.assertEqual(book.memory_for('novel-v08',None),[])
         finally:mem.close()
         class ForceOld(CatalogDerivedScript):
             def complete(self,phase,messages,schema,model):

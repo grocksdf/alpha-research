@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import time
@@ -30,7 +31,8 @@ from .v082_protocol import (parse_tool_response, safe_model_diagnostic,
                             ModelToolCallInvalid)
 from .v082_formula import validate_formula, formula_feedback
 
-PROTOCOL = "llm-autoresearch-v083"
+PROTOCOL = "llm-autoresearch-v083-p1"
+KNOWLEDGE_SEMANTICS = "host-observation-v1"
 PHASES = ("explorer", "strategist", "worker", "critic", "playbook")
 # Safety enums are actions / evidence grades, NOT economic families.
 STRATEGIES = {"test", "revise", "seek_evidence", "abandon"}
@@ -117,6 +119,12 @@ def _check_structure(phase, data):
     items = data[name]
     if not isinstance(items, list) or len(items) > schema['properties'][name]['maxItems']:
         raise ResearchError("v0.8 批次长度异常")
+    # A *complete* authenticated Playbook tool response can contain a bad
+    # individual proposal. Its immutable payload is archived first; review()
+    # then rejects that item with a source-bound receipt. The outer tool call,
+    # JSON, bounds and response provenance remain strictly fail-closed.
+    if phase == "playbook":
+        return items
     expected = schema["properties"][name]["items"]["properties"]
     for i, item in enumerate(items):
         if not isinstance(item, dict) or set(item) != set(expected):
@@ -154,6 +162,80 @@ def _check_structure(phase, data):
     if phase == "strategist":
         _require_text(data["direction_update"], "direction_update", 900)
     return items
+
+
+def _validate_playbook_item(item):
+    """Validate one intact JSON item; an invalid sibling cannot mask others.
+
+    This intentionally does not classify claims with keywords: every raw
+    semantic interpretation is unverified regardless of its wording.
+    """
+    fields = SCHEMAS["playbook"]["properties"]["knowledge"]["items"]["properties"]
+    if not isinstance(item, dict) or set(item) != set(fields):
+        raise ResearchError("Playbook 单条知识缺少必填字段或含额外字段")
+    for name, rule in fields.items():
+        value = item[name]
+        if rule["type"] == "array":
+            if (not isinstance(value,list) or len(value)>rule["maxItems"] or
+                    any(not isinstance(v,str) or not v.strip() or
+                        len(v)>rule["items"]["maxLength"] for v in value)):
+                raise ResearchError("Playbook 知识证据字段类型或边界异常: "+name)
+        else:
+            _require_text(value, name, rule.get("maxLength",1000))
+            if "enum" in rule and value not in rule["enum"]:
+                raise ResearchError("Playbook 知识状态不属于授权枚举")
+    return item
+
+
+def _host_knowledge_body(item, eligible, *, request_id=None, proposal_index=None):
+    """Build *only factual, scope-bound* knowledge from persisted trial data.
+
+    None of topic, claim, applicability, uncertainty or open_question from
+    untrusted model prose may become a trusted/retrieved fact. The complete
+    model wording stays in the immutable role payload, reachable by hash, and
+    remains an unverified research interpretation for separate evaluation.
+    """
+    citations = item["supporting_evidence_ids"] + item["contradicting_evidence_ids"]
+    grades = {eligible[eid]["evidence_grade"] for eid in citations}
+    grade = ("synthetic_process" if "synthetic_process" in grades else "research_is")
+    synthetic = grade == "synthetic_process"
+    observations = [{
+        "evidence_id":eid,
+        "trial_id":eligible[eid]["trial_id"],
+        "evidence_grade":eligible[eid]["evidence_grade"],
+        "metrics":eligible[eid]["metrics"],
+        "result_is_synthetic":eligible[eid]["evidence_grade"]=="synthetic_process",
+    } for eid in citations]
+    topic = "model-topic-sha256-" + digest(item["topic"])[:24]
+    return {
+        "knowledge_semantics": KNOWLEDGE_SEMANTICS,
+        "topic":topic,
+        "claim": ("Completed synthetic Demo trials are recorded below. "
+                  "Metrics are synthetic simulator outputs, not real-market returns."
+                  if synthetic else
+                  "Completed live in-sample trial observations are recorded below. "
+                  "They are not independently validated market performance."),
+        "applicability": ("demo_synthetic_process_only" if synthetic
+                          else "live_in_sample_research_only"),
+        "uncertainty":"Real-market profitability, predictive power and independent validation remain unproven.",
+        "supporting_evidence_ids":item["supporting_evidence_ids"],
+        "contradicting_evidence_ids":item["contradicting_evidence_ids"],
+        "open_question":"See source-bound unverified model proposal for research questions; do not treat it as evidence.",
+        "state":("contradicted" if item["contradicting_evidence_ids"] else item["state"]),
+        "evidence_scope":{
+            "grade":grade,
+            "applies_to":"synthetic_demo_execution" if synthetic else "live_in_sample_observations",
+            "market_alpha_validated":False,
+            "independent_validation":False,
+            "set_by":"host_verified_trial_facts"},
+        "observations":observations,
+        "model_interpretation":{
+            "is_verified_fact":False,
+            "source_request_id":request_id,
+            "proposal_index":proposal_index,
+            "source_item_sha256":digest(item),
+            "raw_claim_and_applicability_only_in_archived_role_payload":True},
+    }
 
 
 def make_plan(config, *, project_id, objective, max_simulations_per_batch=3,
@@ -534,6 +616,31 @@ class Playbook:
                 return False
             if row["evidence_grade"] not in ("synthetic_process","research_is"):
                 return False
+            if (body.get("knowledge_semantics")!=KNOWLEDGE_SEMANTICS or
+                    body.get("evidence_scope",{}).get("grade")!=row["evidence_grade"] or
+                    body["evidence_scope"].get("market_alpha_validated") is not False or
+                    body["evidence_scope"].get("independent_validation") is not False or
+                    body.get("model_interpretation",{}).get("is_verified_fact") is not False):
+                return False
+            source_ref=body["model_interpretation"]
+            if not source_ref.get("source_request_id") or type(source_ref.get("proposal_index")) is not int:
+                return False
+            source=self.db.execute(
+                "SELECT r.state,r.role,r.project_id,p.body_json FROM v08_requests r "
+                "JOIN v08_role_payloads p ON p.request_id=r.id WHERE r.id=?",
+                (source_ref["source_request_id"],)).fetchone()
+            if not source or (source["state"],source["role"],source["project_id"]) != (
+                    "completed","playbook",project_id):
+                return False
+            proposals=json.loads(source["body_json"])["knowledge"]
+            index=source_ref["proposal_index"]
+            if not 0<=index<len(proposals):
+                return False
+            proposal=_validate_playbook_item(proposals[index])
+            complete={x["evidence_id"]:x for x in self.completed_evidence(project_id)}
+            if body!=_host_knowledge_body(proposal,complete,
+                    request_id=source_ref["source_request_id"],proposal_index=index):
+                return False
             for evidence_id in support:
                 if not isinstance(evidence_id,str):
                     return False
@@ -551,7 +658,7 @@ class Playbook:
                 elif result.get("mode")!="live" or result.get("synthetic") is True:
                     return False
             return True
-        except (KeyError,TypeError,ValueError,json.JSONDecodeError):
+        except (KeyError,TypeError,ValueError,json.JSONDecodeError,ResearchError):
             return False
 
     def validate_memory_references(self,project_id, retrieved, referenced):
@@ -595,7 +702,12 @@ class Playbook:
             body=json.loads(row["body"])
             support=body["supporting_evidence_ids"]
             safe.append({"id":row["id"],"topic":row["topic"],"claim":body["claim"],
+                         "applicability":body["applicability"],
                          "uncertainty":body["uncertainty"],
+                         "evidence_scope":body["evidence_scope"],
+                         "observations":body["observations"],
+                         "model_interpretation_status":"unverified_archived_only",
+                         "model_interpretation_source_sha256":body["model_interpretation"]["source_item_sha256"],
                          "evidence_grade":row["evidence_grade"],
                          "knowledge_kind":("synthetic_process_observation" if
                             row["evidence_grade"]=="synthetic_process" else
@@ -714,6 +826,14 @@ class Playbook:
                     trial['expression']!=row['expression'] or
                     not isinstance(result.get('metrics'),dict)):
                 continue
+            # Never allow free-text, booleans or NaN from a malformed result
+            # to enter host-authored numerical observations or later prompts.
+            metrics=result['metrics']
+            if any((metrics.get(key) is not None and
+                    (type(metrics[key]) not in (int,float) or
+                     not math.isfinite(metrics[key])))
+                   for key in ('sharpe','fitness','turnover')):
+                continue
             # The evidence grade is computed by the host; no free-text model
             # claim can change the scope of a result.
             if result.get('synthetic') is True and result.get('mode')=='demo':
@@ -777,8 +897,7 @@ class Playbook:
                     rejected.append({'item_index':index,'reason':old['reason']})
                 continue
             try:
-                if not isinstance(item,dict):
-                    raise ResearchError('知识提案不是结构化对象')
+                _validate_playbook_item(item)
                 refs=item['supporting_evidence_ids']+item['contradicting_evidence_ids']
                 if (not item['supporting_evidence_ids'] or not refs or
                         len(refs)!=len(set(refs)) or any(x not in eligible for x in refs)):
@@ -971,8 +1090,10 @@ class Playbook:
 
     def learn(self,project_id,run_id,proposals,*,review_receipt=None):
         known={v["evidence_id"]:v for v in self.evidence(project_id,limit=200)}
+        eligible={v["evidence_id"]:v for v in self.completed_evidence(project_id)}
         created=[]
         for item in proposals:
+            _validate_playbook_item(item)
             citations=item["supporting_evidence_ids"]+item["contradicting_evidence_ids"]
             if not citations or len(citations)!=len(set(citations)) or any(x not in known for x in citations):
                 raise ResearchError("知识不能建立在无来源或虚构来源上")
@@ -984,19 +1105,39 @@ class Playbook:
             completed={v['evidence_id'] for v in self.completed_evidence(project_id)}
             if any(x not in completed for x in citations):
                 raise ResearchError("未经核实的试验不能生成有证据知识")
+            if not review_receipt:
+                raise ResearchError("知识固化必须具有经核验的来源提案审核回执")
+            source=self.db.execute(
+                "SELECT r.state,r.role,r.run_id,r.project_id,p.body_json "
+                "FROM v08_requests r JOIN v08_role_payloads p ON p.request_id=r.id "
+                "WHERE r.id=?",(review_receipt["request_id"],)).fetchone()
+            if not source or (source["state"],source["role"],source["run_id"],source["project_id"]) != (
+                    "completed","playbook",run_id,project_id):
+                raise ResearchError("知识固化来源必须来自已完成的 Playbook 角色")
+            archived=json.loads(source["body_json"])["knowledge"]
+            source_index=review_receipt["proposal_index"]
+            if (type(source_index) is not int or not 0<=source_index<len(archived) or
+                    archived[source_index]!=item or
+                    review_receipt["item_sha256"]!=digest(item)):
+                raise ResearchError("知识固化的原始模型提案或审核哈希不一致")
             grade="synthetic_process" if "synthetic_process" in grades else "research_is"
-            state=item["state"]
-            if item["contradicting_evidence_ids"]:
-                state="contradicted"
+            host_body=_host_knowledge_body(item,eligible,
+                request_id=review_receipt["request_id"],
+                proposal_index=review_receipt["proposal_index"])
+            state=host_body["state"]
+            topic=host_body["topic"]
             prev=self.db.execute("SELECT id FROM v08_knowledge WHERE project_id=? AND topic=? ORDER BY created DESC,id DESC LIMIT 1",
-                                 (project_id,item["topic"])).fetchone()
+                                 (project_id,topic)).fetchone()
             entry=uuid.uuid4().hex
             def write():
                 self.db.execute("INSERT INTO v08_knowledge VALUES(?,?,?,?,?,?,?,?,?)",
-                    (entry,project_id,item["topic"],dumps(item),dumps(citations),grade,state,prev[0] if prev else None,now()))
-                self.event(run_id,"playbook_revision",{"id":entry,"topic":item["topic"],
+                    (entry,project_id,topic,dumps(host_body),dumps(citations),grade,state,prev[0] if prev else None,now()))
+                self.event(run_id,"playbook_revision",{"id":entry,"topic":topic,
                     "evidence_ids":citations,"grade":grade,"state":state,
-                    "supersedes_id":prev[0] if prev else None,"revision_sha256":digest(item),
+                    "supersedes_id":prev[0] if prev else None,"revision_sha256":digest(host_body),
+                    "source_proposal_sha256":digest(item),
+                    "knowledge_semantics":KNOWLEDGE_SEMANTICS,
+                    "interpretation_is_not_evidence":True,
                     "knowledge_kind":("synthetic_process_observation" if grade=="synthetic_process"
                                       else "in_sample_research_observation"),
                     "market_alpha_validated":False})
@@ -1103,8 +1244,15 @@ class Playbook:
                 accepted=self.db.execute(
                     'SELECT body FROM v08_knowledge WHERE id=? AND project_id=?',
                     (receipt['knowledge_id'],project_id)).fetchone()
-                if not accepted or digest(json.loads(accepted[0]))!=receipt['item_sha256']:
-                    raise ResearchError('Playbook 已固化知识与原提案不一致')
+                if not accepted:
+                    raise ResearchError('Playbook 已固化知识事实缺失')
+                eligible={e['evidence_id']:e for e in self.completed_evidence(project_id)}
+                expected=_host_knowledge_body(
+                    _validate_playbook_item(body[index]),eligible,
+                    request_id=receipt['request_id'],proposal_index=index)
+                if (json.loads(accepted[0])!=expected or
+                        expected['model_interpretation']['source_item_sha256']!=receipt['item_sha256']):
+                    raise ResearchError('Playbook 宿主事实与模型来源/证据等级不一致')
             elif receipt['knowledge_id'] is not None:
                 raise ResearchError('被拒绝的 Playbook 提案不应产生知识')
         for revision in self.db.execute(

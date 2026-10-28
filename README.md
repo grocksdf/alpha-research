@@ -458,3 +458,37 @@ create a new dedicated database. Historical v0.8.2 plans remain immutable and
 cannot be silently upgraded. Demo remains the only enabled autonomous research
 execution path; Live BRAIN and Submit are not authorized by this release.
 See `docs/v083-playbook-P0-fix.md` for the audit and test scope.
+
+
+## v0.8.3 P1 Playbook semantic and structure hardening (0.8.3.post1)
+
+The live research/Submit gates are unchanged and disabled. The production
+Alpha generator remains **LLM-only**. This update changes the frozen protocol
+from `llm-autoresearch-v083` to `llm-autoresearch-v083-p1`; old study databases
+**must be kept with their original code**, not resumed with this build.
+
+- Only actual persisted, completed trials count as evidence. The host now
+  constructs the knowledge `claim`, `applicability`, `uncertainty`, numeric
+  observations and scope from the verified trial ledger, **not** model prose.
+  All metrics from Demo are labeled synthetic. No performance promise or
+  market-validity statement from a model can become a stored knowledge fact.
+- The model still proposes a topic, interpretation, uncertainty, questions and
+  citations. Its exact source-bound text is kept in the immutable role payload
+  and identified by a SHA256 digest. This is an *unverified interpretation*,
+  not part of the trusted/retrieved knowledge content. Topic identifiers are
+  hashed rather than treating a free-text title as a research fact.
+- Retrieved Playbook memory explicitly includes its evidence grade, verified
+  applicability, uncertainty and observations. Memory retrieval/reference/
+  application audit remains separate, not causal evidence of model uplift.
+- For a well-formed, complete and attributed Playbook tool call, each knowledge
+  item is schema-validated and reviewed independently. An invalid sibling
+  receives an immutable rejection receipt; valid siblings may be accepted.
+  A truncated tool response, malformed JSON, wrong tool, malformed envelope or
+  absent model provenance is **never partially accepted**.
+- No automatic resubmission is added. The existing explicit manual bounded
+  model-retry path and fail-closed unknown-write handling are retained.
+
+For reproducible offline tests run `python verification/v08_module_matrix.py
+--repo . --report-dir /tmp/alpha-p1-offline`. Genuine three-round research is
+**not covered** by scripted evidence and requires separate model-price approval
+and an authorized API key before `verification/v08_genuine_llm_acceptance.py`.
